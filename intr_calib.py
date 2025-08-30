@@ -4,8 +4,8 @@ import yaml
 from typing import Dict, Tuple, List, Optional
 
 # Fixed checkerboard you print from PDF (edit if needed)
-CHECKERBOARD: Tuple[int, int] = (8, 11)  # (cols, rows) of inner corners
-SQUARE_SIZE: float = 12.0                 # square length in your chosen unit
+CHECKERBOARD: Tuple[int, int] = (8, 6)  # (cols, rows) of inner corners
+SQUARE_SIZE: float = 25.0                 # square length in your chosen unit
 MIN_SAMPLES: int = 12                     # minimum valid detections recommended
 
 class SimpleIntrinsicsCalibrator:
