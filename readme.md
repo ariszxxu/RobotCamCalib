@@ -16,5 +16,30 @@ Minimal python implementaiton of camera calibration with full visualization for 
 
 1. Print `assets/extr_calib_apriltag.pdf` on an A4 paper with 100% scale. Cut out the apriltag and paste it on a flat surface. In eye-on-base calibration, the AprialTag is assumed to be rigidly attached to the robot base frame, e.g. pasted on the table. In eye-on-hand calibration, the apriltag is assumed to be be rigidly attached to a robot end-effector frame.
 2. We provide reference code for calibrating extrinsics for a realsense camera and xarm6 system in `extr_calib.py`. Make adaptation to `thirdview_realsense_xarm6_example` and `wrist_realsense_xarm6_example` based on your camera and robot settings. 
-3. After running the script, open `http://localhost:8080/` in your browser. Drag your robot around in a manual mode, make sure the camera can see the AprialTag. If the AprialTag can be clearly seen in the image, click `click_and_append` button to store the current robot and tag poses to buffer. After saving 8 groups of data, the visualizer will automatically update the solution visualization, i.e. `frames/X_WorldCam` and `frames/X_WorldTag`. The more diverse the data, the better the result. Click `click_and_save` button to save the results.
+3. After running the script, open `http://localhost:8080/` in your browser. Drag your robot around in a manual mode, make sure the camera can see the AprialTag. If the AprialTag can be clearly seen in the image, click `click_and_append` button to store the current robot and tag poses to buffer. After saving 8 groups of data, the visualizer will automatically update the solution visualization, i.e. `frames/X_WorldCam` and `frames/X_WorldTag`. The more diverse the data (normally > 50 groups), the better the result. Click `click_and_save` button to save the results.
+
+### Result Visualization 
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="assets/vis_images/eye_on_base_rw.jpg" width="300"/><br/>
+      <sub>Eye on Base (RW)</sub>
+    </td>
+    <td align="center">
+      <img src="assets/vis_images/eye_on_base_viser.png" width="300"/><br/>
+      <sub>Eye on Base (Viser)</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="assets/vis_images/eye_on_hand_rw.jpg" width="300"/><br/>
+      <sub>Eye on Hand (RW)</sub>
+    </td>
+    <td align="center">
+      <img src="assets/vis_images/eye_on_hand_viser.png" width="300"/><br/>
+      <sub>Eye on Hand (Viser)</sub>
+    </td>
+  </tr>
+</table>
 
