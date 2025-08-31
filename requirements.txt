@@ -1,2 +1,7 @@
 viser 
 pupil-apriltags
+loguru 
+scipy
+opencv-python
+numpy
+pyyaml
