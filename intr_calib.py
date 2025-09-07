@@ -156,7 +156,22 @@ def realsense_intrinsics_calibration_example():
     """
     from cameras import RealsenseCamera, InteractiveCamera
     cam = RealsenseCamera()
-    cam.start()
+    cam_ui = InteractiveCamera(camera=cam)
+    rgb_frames = cam_ui.run()
+
+    intr_calib = SimpleIntrinsicsCalibrator()
+    calib_results = intr_calib.calibrate(rgb_frames)
+    print("Calibration results:", calib_results)
+    intr_calib.save_yaml("outputs/intrinsics.yaml")
+    print("Saved intrinsics to outputs/intrinsics.yaml")
+
+def usbcam_intrinsics_calibration_example():
+    """
+    Example usage with a Realsense camera and interactive frame capture.
+    Requires the 'cameras' module with RealsenseCamera and InteractiveCamera classes.
+    """
+    from cameras import CV2Camera, InteractiveCamera
+    cam = CV2Camera(src=0)
     cam_ui = InteractiveCamera(camera=cam)
     rgb_frames = cam_ui.run()
 
@@ -168,6 +183,7 @@ def realsense_intrinsics_calibration_example():
 
 if __name__ == "__main__":
     
-    realsense_intrinsics_calibration_example()
+    # realsense_intrinsics_calibration_example()
+    usbcam_intrinsics_calibration_example()
 
 
