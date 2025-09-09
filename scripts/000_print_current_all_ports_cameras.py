@@ -1,0 +1,3 @@
+from contaccams.cameras import print_all_ports_in_use_for_USB_cameras
+
+print_all_ports_in_use_for_USB_cameras()
