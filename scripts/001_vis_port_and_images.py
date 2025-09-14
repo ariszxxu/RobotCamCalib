@@ -102,8 +102,8 @@ def visualize_all_cameras(manager, window_name="Cameras", window_wh=(1400, 800),
 
 if __name__ == "__main__":
     camera_to_port = {
-        "tip_cam": "3-10:1.0",
-        "root_cam": "3-9:1.0",
+        "tip_cam": "3-9:1.0",
+        "root_cam": "3-10:1.0",
     }
 
     manager = CameraManager(camera_to_port)
