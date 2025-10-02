@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
 import cv2
 import numpy as np
 from loguru import logger
@@ -13,183 +13,283 @@ from pupil_apriltags import Detector
 from scipy.spatial.transform import Rotation as R
 
 
-# --------------------- small SE3/SO3 helpers --------------------- #
+# ---------- Lie helpers ----------
+def skew(v):
+    x,y,z = v
+    return np.array([[0,-z,y],[z,0,-x],[-y,x,0]], dtype=float)
 
-def inv_T(T: np.ndarray) -> np.ndarray:
-    R, t = T[:3, :3], T[:3, 3]
-    Ti = np.eye(4)
-    Ti[:3, :3] = R.T
-    Ti[:3, 3]  = -R.T @ t
+def so3_exp(w):
+    th = np.linalg.norm(w)
+    if th < 1e-12:
+        return np.eye(3) + skew(w)
+    k = w / th
+    K = skew(k)
+    return np.eye(3) + np.sin(th)*K + (1-np.cos(th))*(K@K)
+
+def so3_log(R):
+    # numerically stable log
+    cos_th = (np.trace(R)-1.0)/2.0
+    cos_th = np.clip(cos_th, -1.0, 1.0)
+    th = np.arccos(cos_th)
+    if th < 1e-12:
+        return np.array([0.,0.,0.])
+    w_hat = (R - R.T) / (2*np.sin(th))
+    return np.array([w_hat[2,1], w_hat[0,2], w_hat[1,0]]) * th
+
+def dexp_inv(w):
+    # inverse of differential of exp on SO(3) (Eq. (44) in paper)
+    th = np.linalg.norm(w)
+    I = np.eye(3)
+    if th < 1e-8:
+        return I - 0.5*skew(w) + (1/12.0)*(skew(w)@skew(w))
+    A = 0.5
+    B = (1.0/(th**2))*(1 - th*np.cos(th)/(2*np.sin(th)))
+    W = skew(w)
+    return I - A*W + B*(W@W)
+
+def se3_exp(dw, dq):
+    R = so3_exp(dw)
+    # first-order adequate for small steps; Jacobian could be added if needed
+    T = np.eye(4); T[:3,:3]=R; T[:3,3]=dq
+    return T
+
+def se3_log(T):
+    w = so3_log(T[:3,:3])
+    q = T[:3,3]
+    return w, q
+
+def inv_T(T):
+    R = T[:3,:3]; t=T[:3,3]
+    Ti = np.eye(4); Ti[:3,:3]=R.T; Ti[:3,3]= -R.T@t
     return Ti
 
-def angle_from_R(R: np.ndarray) -> float:
-    c = (np.trace(R) - 1.0) * 0.5
-    c = np.clip(c, -1.0, 1.0)
-    return float(np.arccos(c))
+def pose_err_deg_m(T_est, T_gt):
+    d = inv_T(T_gt) @ T_est
+    w = so3_log(d[:3,:3])
+    return np.degrees(np.linalg.norm(w)), np.linalg.norm(d[:3,3])
 
-def log_SO3(R: np.ndarray) -> np.ndarray:
-    th = angle_from_R(R)
-    if th < 1e-12:
-        return np.zeros(3)
-    W = (R - R.T) * (0.5 / np.sin(th))
-    return th * np.array([W[2,1], W[0,2], W[1,0]])
+# --- Huber on Mahalanobis^2 ---
+def huber_weight_mahal(r2, delta2):
+    w = np.ones_like(r2)
+    mask = r2 > delta2
+    w[mask] = np.sqrt(delta2 / r2[mask])
+    return w
 
-def se3_mean(Ts: List[np.ndarray]) -> np.ndarray:
-    R_sum = np.zeros((3, 3))
-    t_sum = np.zeros(3)
-    for T in Ts:
-        R_sum += T[:3, :3]
-        t_sum += T[:3, 3]
-    U, _, Vt = np.linalg.svd(R_sum)
-    Rm = U @ Vt
-    if np.linalg.det(Rm) < 0:
-        U[:, -1] *= -1
-        Rm = U @ Vt
-    Tm = np.eye(4)
-    Tm[:3, :3] = Rm
-    Tm[:3, 3]  = t_sum / len(Ts)
-    return Tm
+def compose_left(T, xi):
+    # left-multiplicative update: T_new = Exp(xi) * T
+    dw = xi[:3]; dq = xi[3:]
+    return se3_exp(dw, dq) @ T
 
-# --------------------- core pieces for AX = XB ------------------- #
+def pack_r(w, p):
+    return np.hstack([w, p])  # 6,
 
-def _relative_pairs(A_list: List[np.ndarray], B_list: List[np.ndarray],
-                    min_rot_deg: float = 1.0,
-                    max_pairs: Optional[int] = None) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-    """Build relative motions C_ij=A_i A_j^{-1}, D_ij=B_i B_j^{-1}, filter by rotation size."""
-    n = len(A_list)
-    C_rel, D_rel = [], []
-    for i in range(n):
-        for j in range(i+1, n):
-            C = A_list[i] @ inv_T(A_list[j])
-            D = B_list[i] @ inv_T(B_list[j])
-            # skip nearly identity rotations (ill-conditioned)
-            if np.degrees(angle_from_R(C[:3, :3])) < min_rot_deg: 
-                continue
-            C_rel.append(C); D_rel.append(D)
-    if max_pairs is not None and len(C_rel) > max_pairs:
-        idx = np.random.permutation(len(C_rel))[:max_pairs]
-        C_rel = [C_rel[k] for k in idx]
-        D_rel = [D_rel[k] for k in idx]
-    return C_rel, D_rel
-
-def _fit_RX_from_pairs(C_rel: List[np.ndarray], D_rel: List[np.ndarray]) -> np.ndarray:
-    """Closed-form rotation for AX=XB using screw-axis (log) Procrustes."""
-    A = np.stack([log_SO3(C[:3,:3]) for C in C_rel], 0)  # kx3
-    B = np.stack([log_SO3(D[:3,:3]) for D in D_rel], 0)  # kx3
-    H = B.T @ A
-    U, _, Vt = np.linalg.svd(H)
+# --- utilities used above (same as before) ---
+def _wahba(Rs_src, Rs_tgt):
+    H = np.zeros((3,3))
+    for Rsrc,Rtgt in zip(Rs_src, Rs_tgt):
+        H += Rtgt @ Rsrc.T
+    U,S,Vt = np.linalg.svd(H)
     R = U @ Vt
     if np.linalg.det(R) < 0:
-        U[:, -1] *= -1
+        U[:,-1] *= -1
         R = U @ Vt
     return R
 
-def _fit_tX_from_pairs(RX: np.ndarray, C_rel: List[np.ndarray], D_rel: List[np.ndarray]) -> np.ndarray:
-    """Linear LS for translation: (I - R_D) tX = t_D - R_X t_C."""
-    rows, rhs = [], []
-    for C, D in zip(C_rel, D_rel):
-        RC, tC = C[:3, :3], C[:3, 3]
-        RD, tD = D[:3, :3], D[:3, 3]
-        rows.append(np.eye(3) - RD)
-        rhs.append(tD - RX @ tC)
-    M = np.concatenate(rows, 0)  # (3k,3)
-    b = np.concatenate(rhs, 0)   # (3k,)
-    lam = 1e-9  # tiny Tikhonov
-    t = np.linalg.lstsq(M.T @ M + lam*np.eye(3), M.T @ b, rcond=None)[0]
-    return t
+def _solve_Y_given_X(A_list, B_list, X):
+    RX = X[:3,:3]; tX = X[:3,3]
+    R_targets = []; R_sources = []
+    for A,B in zip(A_list, B_list):
+        R_targets.append(A[:3,:3] @ RX)
+        R_sources.append(B[:3,:3])
+    RY = _wahba(R_sources, R_targets)
+    # t: A tX + a ≈ RY b + tY
+    M=[]; v=[]
+    for A,B in zip(A_list, B_list):
+        M.append(np.eye(3))
+        v.append((A[:3,:3]@tX + A[:3,3]) - (RY@B[:3,3]))
+    M = np.vstack(M); v = np.hstack(v)
+    tY, *_ = np.linalg.lstsq(M, v, rcond=None)
+    T = np.eye(4); T[:3,:3]=RY; T[:3,3]=tY
+    return T
 
-def _residuals_X(C_rel: List[np.ndarray], D_rel: List[np.ndarray], RX: np.ndarray, tX: np.ndarray
-                ) -> Tuple[np.ndarray, np.ndarray]:
-    """Residuals on D ≈ X C X^{-1}: angle error (rad) and translation norm (same unit as input)."""
-    ang = []
-    tran = []
-    X = np.eye(4); X[:3,:3]=RX; X[:3,3]=tX
-    Xi = inv_T(X)
-    for C, D in zip(C_rel, D_rel):
-        Pred = X @ C @ Xi
-        E = inv_T(Pred) @ D  # residual transform
-        ang.append(angle_from_R(E[:3,:3]))
-        tran.append(np.linalg.norm(E[:3,3]))
-    return np.array(ang), np.array(tran)
+def _solve_X_given_Y(A_list, B_list, Y):
+    RY = Y[:3,:3]; tY = Y[:3,3]
+    R_sources = []; R_targets = []
+    for A,B in zip(A_list, B_list):
+        R_sources.append(A[:3,:3])
+        R_targets.append(RY @ B[:3,:3])
+    RX = _wahba(R_sources, R_targets)
+    # A tX + a ≈ RY b + tY
+    M=[]; v=[]
+    for A,B in zip(A_list, B_list):
+        M.append(A[:3,:3])
+        v.append((RY@B[:3,3] + tY) - A[:3,3])
+    M = np.vstack(M); v = np.hstack(v)
+    tX, *_ = np.linalg.lstsq(M, v, rcond=None)
+    T = np.eye(4); T[:3,:3]=RX; T[:3,3]=tX
+    return T
 
-# --------------------- RANSAC + refine, then Y ------------------- #
+def block_diag(blocks):
+    # simple block-diagonal constructor
+    r = sum(b.shape[0] for b in blocks)
+    c = sum(b.shape[1] for b in blocks)
+    out = np.zeros((r,c))
+    i = j = 0
+    for B in blocks:
+        rr, cc = B.shape
+        out[i:i+rr, j:j+cc] = B
+        i += rr; j += cc
+    return out
 
-def calibrate_cammount_and_tag(
-    X_CamTag_list: np.ndarray,        # B_i, (n,4,4)
+
+# ---------- PROBABILISTIC MLE (Config-3) with GN + numerical Jacobians ----------
+def calibrate_cammount_and_tag_prob(
+    X_CamTag_list: np.ndarray,        # B_i (n,4,4)
     X_WorldCammount_list: np.ndarray, # (n,4,4)
     X_WorldTagmount_list: np.ndarray, # (n,4,4)
-    ransac_iters: int = 500,
-    sample_size: int = 8,             # relative-pair samples per hypothesis
-    rot_thresh_deg: float = 1.0,      # inlier threshold on rotation (deg)
-    trans_thresh: float = 0.01,       # inlier threshold on translation (meters)
-    min_rot_deg_pair: float = 1.0,    # ignore nearly identity pairs
-    max_pairs: Optional[int] = None,  # cap total relative pairs
-) -> Tuple[np.ndarray, np.ndarray, dict]:
-    """
-    Robustly solve B_i = X A_i Y.
-    Returns (X_CammountCam, X_TagmountTag, info).
-    """
+    Sigma_w_list: Optional[List[np.ndarray]] = None,  # rot cov of B_i
+    Sigma_p_list: Optional[List[np.ndarray]] = None,  # trans cov of B_i
+    max_iters: int = 200,
+    huber_delta_rot_deg: float = 3.0,
+    huber_delta_trans: float = 0.01,
+    eps_dx: float = 1e-8,
+    eps_stop_deg: float = 1e-6,
+    eps_stop_trans: float = 1e-8,
+    damping: float = 1e-6,
+    verbose: bool = False,
+) -> Tuple[np.ndarray, np.ndarray, Dict]:
+
     n = X_CamTag_list.shape[0]
     assert X_CamTag_list.shape == (n,4,4)
     assert X_WorldCammount_list.shape == (n,4,4)
     assert X_WorldTagmount_list.shape == (n,4,4)
 
-    # Build A_i, B_i
+    # Build A_i (trusted) and B_i (noisy)
     A_list = [inv_T(X_WorldCammount_list[i]) @ X_WorldTagmount_list[i] for i in range(n)]
     B_list = [X_CamTag_list[i] for i in range(n)]
 
-    # Relative motions
-    C_rel, D_rel = _relative_pairs(A_list, B_list, min_rot_deg=min_rot_deg_pair, max_pairs=max_pairs)
-    k = len(C_rel)
-    if k < sample_size:
-        raise RuntimeError("Not enough informative relative pairs for robust estimation.")
+    # Cov defaults
+    if Sigma_w_list is None:
+        Sigma_w_list = [ (np.radians(3.0)**2) * np.eye(3) for _ in range(n) ]
+    if Sigma_p_list is None:
+        Sigma_p_list = [ (0.01**2) * np.eye(3) for _ in range(n) ]
+    SwI = [np.linalg.inv(Sw) for Sw in Sigma_w_list]
+    SpI = [np.linalg.inv(Sp) for Sp in Sigma_p_list]
 
-    # Precompute thresholds in radians
-    rot_thr = np.radians(rot_thresh_deg)
+    # Simple LS init (same as before)
+    X = np.eye(4)
+    Y = _solve_Y_given_X(A_list, B_list, X)
+    X = _solve_X_given_Y(A_list, B_list, Y)
+    Y = _solve_Y_given_X(A_list, B_list, X)
 
-    # RANSAC loop
-    best_inliers = None
-    best_RX, best_tX = None, None
-    idx_all = np.arange(k)
+    # Robust params
+    delta_w2 = (np.radians(huber_delta_rot_deg))**2
+    delta_p2 = (huber_delta_trans)**2
 
-    for _ in range(ransac_iters):
-        idx = np.random.choice(k, size=sample_size, replace=False)
-        RX_h = _fit_RX_from_pairs([C_rel[i] for i in idx], [D_rel[i] for i in idx])
-        tX_h = _fit_tX_from_pairs(RX_h, [C_rel[i] for i in idx], [D_rel[i] for i in idx])
+    # parameter vector is [xi_X (6), xi_Y (6)] but we update via left-mult on (X,Y) directly
+    for it in range(max_iters):
+        # assemble residuals and block-diagonal weight inverses
+        r_all = []
+        W_inv_blocks = []
+        for i,(A,B,Sw,Sp) in enumerate(zip(A_list, B_list, SwI, SpI)):
+            # residual transform: E_i = X^{-1} A^{-1} Y B  (should be ~ Identity)
+            Ei = inv_T(X) @ inv_T(A) @ Y @ B
+            w_i, p_i = se3_log(Ei)
 
-        ang_res, tr_res = _residuals_X(C_rel, D_rel, RX_h, tX_h)
-        inliers = (ang_res <= rot_thr) & (tr_res <= trans_thresh)
+            # Mahalanobis^2 per part
+            r2w = w_i.T @ Sw @ w_i
+            r2p = p_i.T @ Sp @ p_i
+            ww = huber_weight_mahal(np.array([r2w]), delta_w2)[0]
+            wp = huber_weight_mahal(np.array([r2p]), delta_p2)[0]
 
-        if best_inliers is None or np.count_nonzero(inliers) > np.count_nonzero(best_inliers):
-            best_inliers = inliers
-            best_RX, best_tX = RX_h, tX_h
+            # stack 6x1 residual (apply sqrt weights inside W_inv later)
+            r_i = pack_r(w_i, p_i)
+            r_all.append(r_i)
 
-    # Refit using all inliers (or fall back to all pairs if RANSAC failed)
-    if best_inliers is None or np.count_nonzero(best_inliers) < sample_size:
-        in_idx = idx_all
-    else:
-        in_idx = np.where(best_inliers)[0]
+            # Build W^{-1} per sample (6x6), using robust weights
+            # We put W^{-1} = diag( ww*Sw, wp*Sp )
+            Wi_inv = np.block([
+                [ww*Sw,            np.zeros((3,3))],
+                [np.zeros((3,3)),  wp*Sp         ]
+            ])
+            W_inv_blocks.append(Wi_inv)
 
-    C_in = [C_rel[i] for i in in_idx]
-    D_in = [D_rel[i] for i in in_idx]
-    RX = _fit_RX_from_pairs(C_in, D_in)
-    tX = _fit_tX_from_pairs(RX, C_in, D_in)
+        r_all = np.hstack(r_all)            # (6n,)
+        W_inv = block_diag(W_inv_blocks)    # (6n x 6n)
 
-    # Recover Y and average
-    X = np.eye(4); X[:3,:3]=RX; X[:3,3]=tX
-    Y_list = [inv_T(A) @ inv_T(X) @ B for A, B in zip(A_list, B_list)]
-    Y = se3_mean(Y_list)
+        # Numerically build J (6n x 12): columns for [δx(6), δy(6)]
+        J = np.zeros((6*n, 12))
+        # basis for se3 perturb
+        E6 = np.eye(6)
 
-    # Report residuals on original equations
+        # finite-diff step size
+        h = eps_dx
+
+        # columns 0..5: effect of δx on residuals
+        for k in range(6):
+            xi = np.zeros(6); xi[k] = h
+            Xp = compose_left(X, xi)  # left-mult perturb
+            col = []
+            for i,(A,B) in enumerate(zip(A_list, B_list)):
+                Ei_p = inv_T(Xp) @ inv_T(A) @ Y @ B
+                w_p, p_p = se3_log(Ei_p)
+                Ei = inv_T(X) @ inv_T(A) @ Y @ B
+                w_0, p_0 = se3_log(Ei)
+                dr = pack_r(w_p - w_0, p_p - p_0) / h
+                col.append(dr)
+            J[:, k] = np.hstack(col)
+
+        # columns 6..11: effect of δy on residuals
+        for k in range(6):
+            xi = np.zeros(6); xi[k] = h
+            Yp = compose_left(Y, xi)
+            col = []
+            for i,(A,B) in enumerate(zip(A_list, B_list)):
+                Ei_p = inv_T(X) @ inv_T(A) @ Yp @ B
+                w_p, p_p = se3_log(Ei_p)
+                Ei = inv_T(X) @ inv_T(A) @ Y @ B
+                w_0, p_0 = se3_log(Ei)
+                dr = pack_r(w_p - w_0, p_p - p_0) / h
+                col.append(dr)
+            J[:, 6+k] = np.hstack(col)
+
+        # Solve Gauss–Newton normal equations with damping (Levenberg)
+        # (J^T W^{-1} J + λI) Δ = - J^T W^{-1} r
+        JT_Wi = J.T @ W_inv
+        H = JT_Wi @ J
+        g = JT_Wi @ r_all
+        H += damping * np.eye(12)
+        try:
+            delta = -np.linalg.solve(H, g)
+        except np.linalg.LinAlgError:
+            delta = -np.linalg.pinv(H) @ g
+
+        # split and update
+        dx = delta[:6]; dy = delta[6:]
+        X = compose_left(X, dx)
+        Y = compose_left(Y, dy)
+
+        if verbose:
+            rm = np.sqrt(np.mean(r_all**2))
+            print(f"[it {it:02d}] |delta_x|={np.linalg.norm(dx):.2e}, |delta_y|={np.linalg.norm(dy):.2e}, rmse={rm:.3e}")
+
+        # stopping
+        if np.linalg.norm(dx[:3]) < np.radians(eps_stop_deg) and \
+           np.linalg.norm(dx[3:]) < eps_stop_trans and \
+           np.linalg.norm(dy[:3]) < np.radians(eps_stop_deg) and \
+           np.linalg.norm(dy[3:]) < eps_stop_trans:
+            break
+
+    # report residuals on Ai X ≈ Y Bi  (identity if perfect)
     rot_err_deg, trans_err = [], []
-    for A, B in zip(A_list, B_list):
-        E = inv_T(X @ A @ Y) @ B
-        rot_err_deg.append(np.degrees(angle_from_R(E[:3,:3])))
-        trans_err.append(np.linalg.norm(E[:3,3]))
+    for A,B in zip(A_list, B_list):
+        E = inv_T(A @ X) @ (Y @ B)
+        wE, qE = se3_log(E)
+        rot_err_deg.append(np.degrees(np.linalg.norm(wE)))
+        trans_err.append(np.linalg.norm(qE))
 
     info = {
-        "num_pairs": k,
-        "num_inliers": int(len(in_idx)),
+        "iters": it+1,
         "rot_err_deg_mean": float(np.mean(rot_err_deg)),
         "rot_err_deg_med": float(np.median(rot_err_deg)),
         "rot_err_deg_max": float(np.max(rot_err_deg)),
@@ -197,12 +297,11 @@ def calibrate_cammount_and_tag(
         "trans_err_med": float(np.median(trans_err)),
         "trans_err_max": float(np.max(trans_err)),
     }
-    logger.info(f"Calibration residuals (mean/med/max): rot {info['rot_err_deg_mean']:.4f}/{info['rot_err_deg_med']:.4f}/{info['rot_err_deg_max']:.4f}, trans {info['trans_err_mean']:.4f}/{info['trans_err_med']:.4f}/{info['trans_err_max']:.4f}")
 
-    # Return in your convention
     X_CammountCam = inv_T(X)
     X_TagmountTag = Y
-    return X_CammountCam, X_TagmountTag
+    return X_CammountCam, X_TagmountTag, info
+
 
 class ViserUrdfUser:
     """Owns a Viser server + URDF; exposes joint names and live updates."""
@@ -378,11 +477,11 @@ class CamTagCalibrator:
         logger.info(f"Appended {len(self.X_CamTag_list)} observations.")
 
         if len(self.X_CamTag_list) >= self.config.ransac_sample_size:  
-            self.X_CammountCam, self.X_TagmountTag = calibrate_cammount_and_tag(
+            self.X_CammountCam, self.X_TagmountTag, info = calibrate_cammount_and_tag_prob(
                 np.asarray(self.X_CamTag_list),
                 np.asarray(self.X_WorldCammount_list),
                 np.asarray(self.X_WorldTagmount_list),
-                sample_size=self.config.ransac_sample_size,
+                max_iters=200,
             )
             logger.info("Solved for new estimates.")
             logger.info(f"X_CammountCam:\n{self.X_CammountCam}")
@@ -484,6 +583,206 @@ def wrist_realsense_xarm6_example():
         time.sleep(0.1)
 
 
+# ---------- random SE(3) sampling ----------
+def rand_unit_vec(rng):
+    v = rng.normal(size=3)
+    n = np.linalg.norm(v) + 1e-12
+    return v / n
+
+def sample_so3(rng, max_deg=30.0):
+    ang = np.radians(rng.uniform(-max_deg, max_deg))
+    axis = rand_unit_vec(rng)
+    return so3_exp(axis * ang)
+
+def sample_se3(rng, rot_deg=30.0, trans_range=0.3):
+    R = sample_so3(rng, rot_deg)
+    t = rng.uniform(-trans_range, trans_range, size=3)
+    T = np.eye(4); T[:3,:3]=R; T[:3,3]=t
+    return T
+
+# ---------- build synthetic dataset ----------
+def make_synth_dataset(
+    n=30,
+    seed=0,
+    Xgt_rot_deg=20.0, Xgt_trans=0.05,
+    Ygt_rot_deg=20.0, Ygt_trans=0.05,
+    A_rot_deg=50.0,  A_trans=0.5,
+    noise_rot_deg=2.0, noise_trans=0.005,
+    anisotropic=False
+):
+    rng = np.random.default_rng(seed)
+
+    # ground-truth X and Y
+    X_gt = sample_se3(rng, rot_deg=Xgt_rot_deg, trans_range=Xgt_trans)
+    Y_gt = sample_se3(rng, rot_deg=Ygt_rot_deg, trans_range=Ygt_trans)
+
+    # noiseless A_i
+    A_list = [sample_se3(rng, rot_deg=A_rot_deg, trans_range=A_trans) for _ in range(n)]
+
+    # true B_i from AX = YB  =>  B_i_true = Y^{-1} A_i X
+    B_true_list = [inv_T(Y_gt) @ A @ X_gt for A in A_list]
+
+    # add noise on B only (config 3)
+    X_CamTag_list = []
+    Sigma_w_list, Sigma_p_list = [], []
+
+    for B_true in B_true_list:
+        if anisotropic:
+            # example: different variances on axes
+            std_w = np.radians(np.array([noise_rot_deg, noise_rot_deg*0.5, noise_rot_deg*2.0]))
+            std_p = np.array([noise_trans, noise_trans*0.5, noise_trans*2.0])
+            Sw = np.diag(std_w**2)
+            Sp = np.diag(std_p**2)
+        else:
+            Sw = (np.radians(noise_rot_deg)**2) * np.eye(3)
+            Sp = (noise_trans**2) * np.eye(3)
+
+        # draw noise and compose on the RIGHT: B_meas = B_true * Exp(ξ)
+        w_noise = rng.multivariate_normal(np.zeros(3), Sw)
+        p_noise = rng.multivariate_normal(np.zeros(3), Sp)
+        Xi = se3_exp(w_noise, p_noise)
+        B_meas = B_true @ Xi
+
+        X_CamTag_list.append(B_meas)
+        Sigma_w_list.append(Sw)
+        Sigma_p_list.append(Sp)
+
+    X_CamTag_list = np.stack(X_CamTag_list, axis=0)
+
+    # To pass A_i through your function, set:
+    #   A_i = inv(X_WorldCammount_i) @ X_WorldTagmount_i
+    # Choose X_WorldCammount_i = I, X_WorldTagmount_i = A_i
+    X_WorldCammount_list = np.stack([np.eye(4) for _ in range(n)], axis=0)
+    X_WorldTagmount_list  = np.stack(A_list, axis=0)
+
+    return (X_gt, Y_gt,
+            X_CamTag_list, X_WorldCammount_list, X_WorldTagmount_list,
+            Sigma_w_list, Sigma_p_list)
+
+
+
+
+# --------- random SE(3) sampling ----------
+def rand_unit_vec(rng):
+    v = rng.normal(size=3)
+    n = np.linalg.norm(v) + 1e-12
+    return v / n
+
+def sample_so3(rng, max_deg=30.0):
+    ang = np.radians(rng.uniform(-max_deg, max_deg))
+    axis = rand_unit_vec(rng)
+    return so3_exp(axis * ang)
+
+def sample_se3(rng, rot_deg=30.0, trans_range=0.3):
+    R = sample_so3(rng, rot_deg)
+    t = rng.uniform(-trans_range, trans_range, size=3)
+    T = np.eye(4); T[:3,:3]=R; T[:3,3]=t
+    return T
+
+# --------- synthetic dataset (A noiseless, B noisy) ----------
+def make_synth_dataset_for_original(
+    n=30,
+    seed=0,
+    Xgt_rot_deg=20.0, Xgt_trans=0.05,
+    Ygt_rot_deg=20.0, Ygt_trans=0.05,
+    A_rot_deg=50.0,  A_trans=0.5,
+    noise_rot_deg=2.0, noise_trans=0.005,
+    anisotropic=False
+):
+    rng = np.random.default_rng(seed)
+
+    # ground-truth X and Y
+    X_gt = sample_se3(rng, rot_deg=Xgt_rot_deg, trans_range=Xgt_trans)
+    Y_gt = sample_se3(rng, rot_deg=Ygt_rot_deg, trans_range=Ygt_trans)
+
+    # noiseless A_i
+    A_list = [sample_se3(rng, rot_deg=A_rot_deg, trans_range=A_trans) for _ in range(n)]
+
+    # true B_i from AX = YB  =>  B_i_true = Y^{-1} A_i X
+    B_true_list = [inv_T(Y_gt) @ A @ X_gt for A in A_list]
+
+    # add noise on B only (compose on the right)
+    X_CamTag_list = []
+    for B_true in B_true_list:
+        if anisotropic:
+            std_w = np.radians(np.array([noise_rot_deg, noise_rot_deg*0.5, noise_rot_deg*2.0]))
+            std_p = np.array([noise_trans, noise_trans*0.5, noise_trans*2.0])
+            w_noise = rng.normal(0, std_w, size=3)
+            p_noise = rng.normal(0, std_p, size=3)
+        else:
+            w_noise = rng.normal(0, np.radians(noise_rot_deg), size=3)
+            p_noise = rng.normal(0, noise_trans, size=3)
+        Xi = se3_exp(w_noise, p_noise)
+        B_meas = B_true @ Xi
+        X_CamTag_list.append(B_meas)
+    X_CamTag_list = np.stack(X_CamTag_list, axis=0)
+
+    # Your function expects:
+    #   A_i = inv(X_WorldCammount_i) @ X_WorldTagmount_i
+    # We can set X_WorldCammount_i = I, X_WorldTagmount_i = A_i
+    X_WorldCammount_list = np.stack([np.eye(4) for _ in range(n)], axis=0)
+    X_WorldTagmount_list  = np.stack(A_list, axis=0)
+
+    return X_gt, Y_gt, X_CamTag_list, X_WorldCammount_list, X_WorldTagmount_list
+
+
+# --------- optional: side-by-side compare with probabilistic solver ----------
+def test_solver(n=30, seed=0, anisotropic=False, noise_rot_deg=2.0, noise_trans=0.005):
+
+    # Build the same dataset again to keep identical randomness
+    (X_gt, Y_gt,
+     X_CamTag_list, X_WorldCammount_list, X_WorldTagmount_list) = \
+        make_synth_dataset_for_original(
+            n=n, seed=seed, anisotropic=anisotropic,
+            noise_rot_deg=noise_rot_deg, noise_trans=noise_trans
+        )
+
+    # Isotropic default covariances inside the function are fine for this test
+    t0 = time.perf_counter()
+    X_CammountCam_prob, Y_prob, info_prob = calibrate_cammount_and_tag_prob(
+        X_CamTag_list, X_WorldCammount_list, X_WorldTagmount_list,
+        Sigma_w_list=None, Sigma_p_list=None,  # or pass anisotropic covs if you want
+        max_iters=3000, 
+        huber_delta_rot_deg=3.0, huber_delta_trans=0.01,
+        verbose=False,
+    )
+    t1 = time.perf_counter()
+    elapsed = t1 - t0
+
+    X_est_prob = inv_T(X_CammountCam_prob)
+    rot_err_X_deg, trans_err_X = pose_err_deg_m(X_est_prob, X_gt)
+    rot_err_Y_deg, trans_err_Y = pose_err_deg_m(Y_prob, Y_gt)
+
+    print("===== Probabilistic (Config-3, Huber) =====")
+    print(f"samples (n):                 {n}")
+    print(f"noise (rot deg, trans m):    ({noise_rot_deg:.3f}, {noise_trans:.4f})   anisotropic={anisotropic}")
+    print(f"inference time (s):          {elapsed:.4f}")
+    print(f"iters:                       {info_prob['iters']}")
+    print(f"[X] rot err (deg):           {rot_err_X_deg:.4f}")
+    print(f"[X] trans err (m):           {trans_err_X:.6f}")
+    print(f"[Y] rot err (deg):           {rot_err_Y_deg:.4f}")
+    print(f"[Y] trans err (m):           {trans_err_Y:.6f}")
+    print(f"residual mean (rot deg):     {info_prob['rot_err_deg_mean']:.4f}")
+    print(f"residual mean (trans m):     {info_prob['trans_err_mean']:.6f}")
+    print("=============================================================\n")
+
+    return {
+            "prob": {
+                "elapsed_s": elapsed,
+                "rot_err_X_deg": rot_err_X_deg,
+                "trans_err_X_m": trans_err_X,
+                "rot_err_Y_deg": rot_err_Y_deg,
+                "trans_err_Y_m": trans_err_Y,
+                "info": info_prob
+            }}
+
 if __name__ == "__main__":
-    # thirdview_realsense_xarm6_example()
-    wrist_realsense_xarm6_example()
+    # A few quick runs
+    # _ = test_original_solver(n=30, seed=42, anisotropic=False, noise_rot_deg=2.0, noise_trans=0.005)
+    # _ = test_original_solver(n=10,  seed=7,  anisotropic=False, noise_rot_deg=2.0, noise_trans=0.005)
+    # _ = test_original_solver(n=30, seed=99, anisotropic=True,  noise_rot_deg=3.0, noise_trans=0.01)
+
+    # Side-by-side (optional, only if you imported the probabilistic version into extr_calib.py)
+    _ = test_solver(n=30, seed=3, anisotropic=False, noise_rot_deg=20.0, noise_trans=0.03)
+
+
