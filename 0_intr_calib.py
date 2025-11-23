@@ -3,9 +3,10 @@ import cv2
 import yaml
 from typing import Dict, Tuple, List, Optional
 
+
 # Fixed checkerboard you print from PDF (edit if needed)
 CHECKERBOARD: Tuple[int, int] = (8, 6)  # (cols, rows) of inner corners
-SQUARE_SIZE: float = 25.0                 # square length in your chosen unit
+SQUARE_SIZE: float = 25.0 * 0.1                 # square length in your chosen unit
 MIN_SAMPLES: int = 12                     # minimum valid detections recommended
 
 class SimpleIntrinsicsCalibrator:
@@ -156,41 +157,47 @@ def realsense_intrinsics_calibration_example():
     """
     from cameras import RealsenseCamera, InteractiveCamera
     cam = RealsenseCamera()
-    cam_ui = InteractiveCamera(camera=cam)
-    rgb_frames = cam_ui.run()
-
-    intr_calib = SimpleIntrinsicsCalibrator()
-    calib_results = intr_calib.calibrate(rgb_frames)
-    print("Calibration results:", calib_results)
-    intr_calib.save_yaml("outputs/intrinsics.yaml")
-    print("Saved intrinsics to outputs/intrinsics.yaml")
-
-def usbcam_intrinsics_calibration_example():
-    """
-    Example usage with a Realsense camera and interactive frame capture.
-    Requires the 'cameras' module with RealsenseCamera and InteractiveCamera classes.
-    """
-    from cameras import CV2Camera, InteractiveCamera
-    cam = CV2Camera(src=0)
-    cam_ui = InteractiveCamera(camera=cam)
-    rgb_frames = cam_ui.run()
-
-    intr_calib = SimpleIntrinsicsCalibrator()
-    calib_results = intr_calib.calibrate(rgb_frames)
-    print("Calibration results:", calib_results)
-    intr_calib.save_yaml("outputs/intrinsics.yaml")
-    print("Saved intrinsics to outputs/intrinsics.yaml")
-
-def cv2camera_intrinsics_calibration_example():
-    """
-    Example usage with a CV2camera and interactive frame capture.
-    Requires the 'cameras' module with CV2Camera and InteractiveCamera classes.
-    """
-    from cameras import CV2Camera, InteractiveCamera
-    cam = CV2Camera(src=3)
-    breakpoint()
     cam.start()
     cam_ui = InteractiveCamera(camera=cam)
+    rgb_frames = cam_ui.run()
+
+    intr_calib = SimpleIntrinsicsCalibrator()
+    calib_results = intr_calib.calibrate(rgb_frames)
+    print("Calibration results:", calib_results)
+    intr_calib.save_yaml("outputs/intrinsics.yaml")
+    print("Saved intrinsics to outputs/intrinsics.yaml")
+
+def avcamera_intrinsics_calibration_example():
+    """
+    Example usage with a AV camera and interactive frame capture.
+    Requires the 'cameras' module with CV2Camera and InteractiveCamera classes.
+    """
+    from cameras import AVCameraManager, InteractiveCamera
+    # 创建摄像头管理器
+    camera_to_port = {
+        "I": "3-10:1.0",
+
+    }
+    camera_left_right_order = {"I" : ["I-root", "I-tip"]}
+    default_opts = {
+        "input_format": "mjpeg",
+        "video_size": "1280x480",  # or "640x480"
+        "framerate": "25",         # or "60"
+    }
+
+    per_cam_opts = {
+        # "tip": {"video_size": "640x480", "framerate": "30"},
+    }
+
+    cam = AVCameraManager(
+        camera_to_port=camera_to_port,
+        camera_left_right_order=camera_left_right_order,
+        default_options=default_opts,
+        per_camera_options=per_cam_opts,
+        stream_index=0,
+    )
+    cam_ui = InteractiveCamera(camera=cam,     checkerboard=(8, 6),  # 指定棋盘格内角点数量 (cols, rows)
+                               )
     rgb_frames = cam_ui.run()
 
     intr_calib = SimpleIntrinsicsCalibrator()
@@ -202,6 +209,7 @@ def cv2camera_intrinsics_calibration_example():
 if __name__ == "__main__":
     
     # realsense_intrinsics_calibration_example()
-    usbcam_intrinsics_calibration_example()
+    avcamera_intrinsics_calibration_example()
+
 
 

@@ -4,6 +4,15 @@ from abc import ABC, abstractmethod
 from typing import Optional, Union, List, Callable
 import numpy as np
 import cv2
+import av
+import cv2
+import time
+import pyudev
+import threading
+from typing import Optional, Dict, List, Tuple
+from termcolor import cprint
+import numpy as np
+from recorder_av_cam import _AVStreamWorker
 
 
 # ---------------------------- Base API ---------------------------- #
@@ -107,6 +116,7 @@ class CV2Camera(Camera):
             # Ensure output is RGB as per interface; if not converting, assume already RGB
             frame_rgb = frame_bgr  # only safe if your source is already RGB
         return frame_rgb
+
 
 
 # ---------------------------- RealSense Camera ---------------------------- #
@@ -338,6 +348,7 @@ class InteractiveCamera:
       show_fps: overlay FPS on screen
       undistort_fn: optional callable(img_rgb) -> img_rgb (preview + stored)
       buffer_max: optional maximum buffer size (oldest frames dropped when exceeded)
+      checkerboard: optional tuple (cols, rows) for chessboard corner detection
     """
     def __init__(
         self,
@@ -347,6 +358,7 @@ class InteractiveCamera:
         show_fps: bool = True,
         undistort_fn: Optional[Callable[[np.ndarray], np.ndarray]] = None,
         buffer_max: Optional[int] = None,
+        checkerboard: Optional[Tuple[int, int]] = None,  # 新增：棋盘格参数
     ):
         self.cam = camera
         self.window_name = window_name
@@ -354,12 +366,63 @@ class InteractiveCamera:
         self.show_fps = show_fps
         self.undistort_fn = undistort_fn
         self.buffer_max = buffer_max
+        
+        # 新增：棋盘格检测相关
+        self.checkerboard = checkerboard
+        self.detection_enabled = checkerboard is not None
+        self.last_detection_ok = False
+        self.last_corners = None
 
         self.buffer: List[np.ndarray] = []
         self.paused = False
         self.show_help = True
         self.last_time = time.time()
         self.fps = 0.0
+
+    # ------------------------ 棋盘格检测相关方法 ------------------------ #
+    def _detect_corners(self, gray: np.ndarray, pattern_size: Tuple[int, int]) -> Tuple[bool, Optional[np.ndarray]]:
+        """检测棋盘格角点"""
+        cols, rows = pattern_size
+        if hasattr(cv2, "findChessboardCornersSB"):
+            flags = cv2.CALIB_CB_EXHAUSTIVE | cv2.CALIB_CB_ACCURACY
+            ok, corners = cv2.findChessboardCornersSB(gray, (cols, rows), flags=flags)
+            if ok:
+                corners = corners.reshape(-1, 1, 2).astype(np.float32)
+            return ok, corners
+        else:
+            flags = cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_NORMALIZE_IMAGE
+            ok, corners = cv2.findChessboardCorners(gray, (cols, rows), flags)
+            if ok:
+                criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 1e-3)
+                corners = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)
+            return ok, corners
+
+    def _overlay_detections(self, bgr: np.ndarray, ok: bool, corners: Optional[np.ndarray]) -> np.ndarray:
+        """绘制棋盘格角点和检测状态"""
+        if ok and corners is not None:
+            # 绘制角点连线
+            cv2.drawChessboardCorners(bgr, self.checkerboard, corners, ok)
+            label = "CHESSBOARD DETECTED"
+            color = (40, 220, 40)  # 绿色
+        else:
+            label = "no chessboard"
+            color = (40, 40, 220)  # 红色
+
+        # 在右上角添加状态标签
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        fs, th = 0.6, 2
+        (tw, th_pix), _ = cv2.getTextSize(label, font, fs, th)
+
+        margin = 10
+        x2 = bgr.shape[1] - margin        # 右边缘
+        y1 = margin                       # 上边缘
+        x1 = x2 - (tw + 12)               # 框宽度 = 文本 + 内边距
+        y2 = y1 + th_pix + 14
+
+        cv2.rectangle(bgr, (x1, y1), (x2, y2), (0, 0, 0), -1)
+        cv2.putText(bgr, label, (x1 + 6, y2 - 6), font, fs, color, th, cv2.LINE_AA)
+
+        return bgr
 
     # ------------------------ public buffer helpers ------------------------ #
     def get_buffer_array(self) -> Optional[np.ndarray]:
@@ -400,6 +463,14 @@ class InteractiveCamera:
         h, w = bgr.shape[:2]
         overlay = bgr.copy()
         y = 28
+        
+        if self.detection_enabled:
+            status_color = (40, 220, 40) if self.last_detection_ok else (40, 40, 220)
+            status_text = "Detected" if self.last_detection_ok else "Not detected"
+            cv2.putText(overlay, f"Chessboard: {status_text}", (12, y),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 2, cv2.LINE_AA)
+            y += 26
+
         if self.show_help:
             lines = [
                 "[s] store    [p] pause    [h] help on/off    [c] clear buffer    [q] quit",
@@ -409,6 +480,7 @@ class InteractiveCamera:
                 cv2.putText(overlay, line, (12, y),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (240, 240, 240), 2, cv2.LINE_AA)
                 y += 26
+                
         if self.show_fps:
             cv2.putText(overlay, f"{self.fps:5.1f} FPS", (w - 130, 28),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (30, 220, 30), 2, cv2.LINE_AA)
@@ -447,6 +519,14 @@ class InteractiveCamera:
                 # Prepare display (RGB -> BGR for OpenCV)
                 disp_bgr = cv2.cvtColor(last_frame_rgb, cv2.COLOR_RGB2BGR)
 
+                # 新增：棋盘格检测和绘制
+                if self.detection_enabled:
+                    gray = cv2.cvtColor(last_frame_rgb, cv2.COLOR_RGB2GRAY)
+                    ok, corners = self._detect_corners(gray, self.checkerboard)
+                    self.last_detection_ok = ok
+                    self.last_corners = corners
+                    disp_bgr = self._overlay_detections(disp_bgr, ok, corners)
+
                 # Optional downscale for display only
                 if self.display_scale is not None and self.display_scale > 0:
                     disp_bgr = cv2.resize(
@@ -454,6 +534,8 @@ class InteractiveCamera:
                     )
 
                 disp_bgr = self._draw_hud(disp_bgr)
+                disp_bgr = cv2.cvtColor(disp_bgr, cv2.COLOR_BGR2RGB)
+
                 cv2.imshow(self.window_name, disp_bgr)
 
                 key = cv2.waitKey(1) & 0xFF
@@ -471,3 +553,182 @@ class InteractiveCamera:
         cv2.destroyWindow(self.window_name)
         return self.get_buffer_array()
     
+class AVCameraManager(Camera):
+    """
+    AV camera manager that yields RGB uint8 frames.
+
+    Args:
+      src: device index (int) or path to video file (str)
+      width, height: requested resolution (OpenCV will try to set; may not be guaranteed)
+      fps: requested frame rate (best-effort)
+      convert_to_rgb: if True, convert BGR->RGB (default True)
+    """
+    def __init__(
+        self,
+        camera_to_port: Dict[str, str],
+        camera_left_right_order,
+        default_options: Optional[Dict[str, str]] = None,
+        per_camera_options: Optional[Dict[str, Dict[str, str]]] = None,
+        stream_index: int = 0,
+    ):
+        """
+        Args:
+            camera_to_port: {name: "/dev/videoX" or other v4l2 device path}
+            default_options: applied to all cameras unless overridden
+                Common useful keys:
+                    - "input_format": "mjpeg" | "yuyv422" | ...
+                    - "video_size": "1280x480"
+                    - "framerate": "30"
+            per_camera_options: {name: {option_key: value}} to override defaults
+            stream_index: video stream index, usually 0
+        """
+        self.camera_to_port = dict(camera_to_port)
+        self.camera_left_right_order = dict(camera_left_right_order)
+
+        self.default_options = dict(default_options or {})
+        self.per_camera_options = dict(per_camera_options or {})
+        self.stream_index = stream_index
+
+        self._workers: Dict[str, _AVStreamWorker] = {}
+        self._active: Dict[str, bool] = {}
+
+    def _merged_options_for(self, name: str) -> Dict[str, str]:
+        merged = dict(self.default_options)
+        if name in self.per_camera_options:
+            merged.update(self.per_camera_options[name])
+        return merged
+
+    def open_camera_by_name(self, camera_name: str) -> bool:
+        device = self.camera_to_port.get(camera_name)
+        if not device:
+            cprint(f"Unknown camera: {camera_name}", "red")
+            return False
+        if camera_name in self._workers:
+            cprint(f"{camera_name} already opened.", "yellow")
+            return True
+
+        options = self._merged_options_for(camera_name)
+        worker = _AVStreamWorker(
+            name=camera_name,
+            device=device,
+            options=options,
+            stream_index=self.stream_index,
+        )
+        worker.start()
+        # Wait briefly to confirm open succeeded (non-blocking overall)
+        time_limit = time.time() + 1.5
+        while time.time() < time_limit and not worker.is_open and worker.last_error is None:
+            time.sleep(0.02)
+
+        if worker.is_open:
+            self._workers[camera_name] = worker
+            self._active[camera_name] = True
+            return True
+        else:
+            # If open failed fast, join and report
+            worker.stop()
+            worker.join(timeout=0.5)
+            err = worker.last_error or "Unknown error while opening"
+            cprint(f"Failed to open {camera_name}: {err}", "red")
+            return False
+
+    def open_all_cameras(self) -> int:
+        count = 0
+        for name in self.camera_to_port.keys():
+            if self.open_camera_by_name(name):
+                count += 1
+        return count
+
+    def release_camera(self, identifier: str):
+        name = self._resolve_camera_name(identifier)
+        if name and name in self._workers:
+            w = self._workers.pop(name)
+            self._active.pop(name, None)
+            w.stop()
+            w.join(timeout=1.0)
+            cprint(f"Released {name}", "cyan")
+
+    def release_all(self):
+        for name in list(self._workers.keys()):
+            self.release_camera(name)
+        cprint("Released all cameras", "cyan")
+
+    def stereo_to_mono_frame_dict(self, stereo_frames):
+        mono_frames = {}
+        for cam_name, frame in stereo_frames.items():
+            if cam_name in self.camera_left_right_order:
+                left_name, right_name = self.camera_left_right_order[cam_name]
+                h, w, _ = frame.shape
+                assert w % 2 == 0, f"Expected even width for stereo frame from {cam_name}"
+                mid = w // 2
+                mono_frames[left_name] = frame[:, :mid, :]
+                mono_frames[right_name] = frame[:, mid:, :]
+            else:
+                mono_frames[cam_name] = frame
+        return mono_frames
+    
+    # ---------- Read / Get Frames ----------
+
+    def get_frames(
+        self,
+        camera_names: Optional[List[str]] = None,
+        img_size: Optional[Tuple[int, int]] = None,  # (W, H)
+    ):
+        """
+        Get the *latest* frames for the requested cameras (non-blocking).
+        Returns a dict {name: BGR np.ndarray}. If return_timestamps=True, also returns {name: ts}.
+        """
+        if camera_names is None:
+            camera_names = list(self._workers.keys())
+        if not camera_names:
+            cprint("No active cameras to read from.", "red")
+            return {}
+
+        frames = {}
+        for name in camera_names:
+            w = self._workers.get(name)
+            if w is None:
+                cprint(f"Camera '{name}' is not opened.", "red")
+                continue
+            frame, ts = w.get_latest()
+            if frame is None:
+                # Not yet decoded a frame; skip silently or warn
+                continue
+            if img_size is not None:
+                stereo_img_size = (img_size[0]*2, img_size[1])
+                frame = cv2.resize(frame, stereo_img_size)
+            frames[name] = frame
+
+        mono_frames = self.stereo_to_mono_frame_dict(frames)
+
+        return mono_frames
+
+
+    def _resolve_camera_name(self, identifier: str) -> Optional[str]:
+        # Identifier can be a camera name or a device path
+        if identifier in self.camera_to_port:
+            return identifier
+        for name, dev in self.camera_to_port.items():
+            if dev == identifier:
+                return name
+        return None
+
+    def set_camera_options(self, camera_name: str, options: Dict[str, str]) -> None:
+        """
+        Update/override PyAV open options for one camera.
+        You must re-open the camera for changes to take effect.
+        """
+        cur = self.per_camera_options.get(camera_name, {})
+        cur.update(options)
+        self.per_camera_options[camera_name] = cur
+        cprint(f"[{camera_name}] Updated options: {self.per_camera_options[camera_name]}", "blue")
+
+    def start(self) -> None:
+        self.open_all_cameras()
+
+    def stop(self) -> None:
+        self.release_all()
+
+    def read(self) -> np.ndarray:
+        """Return a single RGB frame (H,W,3) uint8. Must raise RuntimeError on failure."""
+        return self.get_frames()["I-tip"]
