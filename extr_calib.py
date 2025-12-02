@@ -298,8 +298,8 @@ def calibrate_cammount_and_tag_prob(
         "trans_err_max": float(np.max(trans_err)),
     }
 
-    X_CammountCam = inv_T(X)
-    X_TagmountTag = Y
+    X_CammountCam = Y
+    X_TagmountTag = X
     return X_CammountCam, X_TagmountTag, info
 
 
@@ -739,7 +739,7 @@ def test_solver(n=30, seed=0, anisotropic=False, noise_rot_deg=2.0, noise_trans=
 
     # Isotropic default covariances inside the function are fine for this test
     t0 = time.perf_counter()
-    X_CammountCam_prob, Y_prob, info_prob = calibrate_cammount_and_tag_prob(
+    X_CammountCam_prob, X_TagmountTag_prob, info_prob = calibrate_cammount_and_tag_prob(
         X_CamTag_list, X_WorldCammount_list, X_WorldTagmount_list,
         Sigma_w_list=None, Sigma_p_list=None,  # or pass anisotropic covs if you want
         max_iters=3000, 
@@ -749,9 +749,8 @@ def test_solver(n=30, seed=0, anisotropic=False, noise_rot_deg=2.0, noise_trans=
     t1 = time.perf_counter()
     elapsed = t1 - t0
 
-    X_est_prob = inv_T(X_CammountCam_prob)
-    rot_err_X_deg, trans_err_X = pose_err_deg_m(X_est_prob, X_gt)
-    rot_err_Y_deg, trans_err_Y = pose_err_deg_m(Y_prob, Y_gt)
+    rot_err_X_deg, trans_err_X = pose_err_deg_m(X_TagmountTag_prob, X_gt)
+    rot_err_Y_deg, trans_err_Y = pose_err_deg_m(X_CammountCam_prob, Y_gt)
 
     print("===== Probabilistic (Config-3, Huber) =====")
     print(f"samples (n):                 {n}")
