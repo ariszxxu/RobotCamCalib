@@ -126,7 +126,6 @@ class _AVStreamWorker(threading.Thread):
         self.close()
         cprint(f"[{self.name}] Reader stopped and closed.", "cyan")
 
-
 class AVCameraManager:
     """
     PyAV-backed multi-camera manager.

@@ -2,6 +2,8 @@ import numpy as np
 import cv2
 import yaml
 from typing import Dict, Tuple, List, Optional
+import sys
+from recorder_av_cam import AVCameraManager
 
 # Fixed checkerboard you print from PDF (edit if needed)
 CHECKERBOARD: Tuple[int, int] = (8, 6)  # (cols, rows) of inner corners
@@ -191,6 +193,38 @@ def cv2camera_intrinsics_calibration_example():
     breakpoint()
     cam.start()
     cam_ui = InteractiveCamera(camera=cam)
+def avcam_intrinsics_calibration():
+    """
+    Example usage with a AV camera and interactive frame capture.
+    Requires the 'cameras' module with AVCameraManager and InteractiveCamera classes.
+    """
+    from cameras import AVCameraManager, InteractiveCamera
+    # 创建摄像头管理器
+    camera_to_port = {
+        "I": "3-10.4.4.4:1.0",
+
+    }
+    camera_left_right_order = {"I" : ["I-root", "I-tip"]}
+    default_opts = {
+        "input_format": "mjpeg",
+        # "video_size": "1280x480",  # or "640x480"
+        "video_size": "640x240",  # or "640x480"
+        "framerate": "25",         # or "60"
+    }
+
+    per_cam_opts = {
+        # "tip": {"video_size": "640x480", "framerate": "30"},
+    }
+
+    cam = AVCameraManager(
+        camera_to_port=camera_to_port,
+        camera_left_right_order=camera_left_right_order,
+        default_options=default_opts,
+        per_camera_options=per_cam_opts,
+        stream_index=0,
+    )
+    cam_ui = InteractiveCamera(camera=cam,     checkerboard=(8, 6),  # 指定棋盘格内角点数量 (cols, rows)
+)
     rgb_frames = cam_ui.run()
 
     intr_calib = SimpleIntrinsicsCalibrator()
@@ -202,6 +236,6 @@ def cv2camera_intrinsics_calibration_example():
 if __name__ == "__main__":
     
     # realsense_intrinsics_calibration_example()
-    usbcam_intrinsics_calibration_example()
+    avcam_intrinsics_calibration()
 
 
