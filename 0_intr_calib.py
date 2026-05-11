@@ -153,11 +153,11 @@ class SimpleIntrinsicsCalibrator:
 def realsense_intrinsics_calibration_example():
     """
     Example usage with a Realsense camera and interactive frame capture.
-    Requires the 'cameras' module with RealsenseCamera and InteractiveCamera classes.
+    Requires RealsenseCamera and InteractiveCamera.
     """
-    from cameras import RealsenseCamera, InteractiveCamera
+    from camera_ui import InteractiveCamera
+    from cameras import RealsenseCamera
     cam = RealsenseCamera()
-    cam.start()
     cam_ui = InteractiveCamera(camera=cam)
     rgb_frames = cam_ui.run()
 
@@ -170,9 +170,10 @@ def realsense_intrinsics_calibration_example():
 def avcamera_intrinsics_calibration_example():
     """
     Example usage with a AV camera and interactive frame capture.
-    Requires the 'cameras' module with CV2Camera and InteractiveCamera classes.
+    Requires AVCameraManager and InteractiveCamera.
     """
-    from cameras import AVCameraManager, InteractiveCamera
+    from camera_ui import InteractiveCamera
+    from cameras import AVCameraManager
     # 创建摄像头管理器
     camera_to_port = {
         "I": "3-10:1.0",
@@ -210,6 +211,4 @@ if __name__ == "__main__":
     
     # realsense_intrinsics_calibration_example()
     avcamera_intrinsics_calibration_example()
-
-
 
