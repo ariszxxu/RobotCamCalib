@@ -12,6 +12,10 @@ from dataclasses import dataclass
 from pupil_apriltags import Detector
 from scipy.spatial.transform import Rotation as R
 
+from apriltag_board import estimate_board_pose_bundle_pnp, load_apriltag_board_yaml
+
+XARM6_EXPECTED_DOF = 6
+
 
 # ---------- Lie helpers ----------
 def skew(v):
@@ -354,9 +358,11 @@ class ExtrinsicsCalibConfig:
     # output paths 
     output_file_path: Path = Path("outputs/extrinsics.yaml")
 
-    # apriltag parameters
+    # 4x4 AprilTag board parameters
     tag_size: float = 0.048
     tag_family: str = "tag36h11"
+    tag_board_yaml_path: Path = Path("assets/apriltag_grid/compact_apriltag_grid_4x4_tag48mm.yaml")
+    board_min_tags: int = 4
 
     # ransac param 
     ransac_sample_size : int = 8
@@ -374,6 +380,8 @@ class CamTagCalibrator:
             families=config.tag_family,
             quad_decimate=1.0,
         )
+        self.tag_board = load_apriltag_board_yaml(config.tag_board_yaml_path)
+        self.config.tag_size = self.tag_board.tag_size_m
         self.camera_params = (
             config.K[0, 0],  # fx
             config.K[1, 1],  # fy
@@ -461,13 +469,19 @@ class CamTagCalibrator:
             position=X_WorldCam[:3, 3],
         )
 
-        # update apriltag detection
+        # update 4x4 AprilTag board detection
         gray_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2GRAY)
-        tags = self.tag_detector.detect(gray_image, True, self.camera_params, self.config.tag_size)
-        if len(tags) == 1:
-            tag = tags[0]
-            self.X_CamTag[:3, :3] = tag.pose_R
-            self.X_CamTag[:3, 3] = tag.pose_t[:, 0]
+        tags = self.tag_detector.detect(gray_image, False)
+        try:
+            self.X_CamTag, used_ids = estimate_board_pose_bundle_pnp(
+                tags,
+                self.tag_board,
+                self.config.K,
+                D=None,
+                min_tags=self.config.board_min_tags,
+            )
+        except (RuntimeError, ValueError, cv2.error):
+            pass
 
     def append_and_solve(self):
         """Append current observations and solve for new estimates."""
@@ -496,6 +510,30 @@ class CamTagCalibrator:
         with open(self.config.output_file_path, "w") as f:
             yaml.dump(results, f)
         logger.info(f"Saved calibration results to {self.config.output_file_path}.")
+
+
+def assert_xarm6_example_model(calibrator: CamTagCalibrator) -> None:
+    """Guard the bundled xArm6 examples against accidental xArm7 use."""
+    ndof = calibrator.urdf_viser.ndof
+    if ndof != XARM6_EXPECTED_DOF:
+        raise AssertionError(
+            f"The bundled examples are configured for xArm6, not xArm7. "
+            f"Loaded {ndof} actuated joints from {calibrator.config.robot_urdf_path}. "
+            "For xArm7 or another robot, change robot_urdf_path, mount link names, "
+            "and joint-value handling before collecting calibration samples."
+        )
+
+
+def xarm6_joint_values(raw_joint_values) -> np.ndarray:
+    joint_values = np.asarray(raw_joint_values, dtype=float)
+    if joint_values.size != XARM6_EXPECTED_DOF:
+        raise AssertionError(
+            f"The xArm6 examples expect exactly {XARM6_EXPECTED_DOF} joint values, "
+            f"but received {joint_values.size}. If this is an xArm7 or another robot, "
+            "update the robot URDF, link names, and joint-value handling instead of "
+            "reusing the xArm6 example."
+        )
+    return joint_values
 
 
 def thirdview_realsense_xarm6_example():
@@ -528,15 +566,15 @@ def thirdview_realsense_xarm6_example():
         tagmount_link_name="link_eef",
         K=K,
         output_file_path=Path("outputs/extrinsics.yaml"),
-        tag_size=0.048,
         tag_family="tag36h11",
     )
     calibrator = CamTagCalibrator(config)
+    assert_xarm6_example_model(calibrator)
 
     while True:
         rgb_frame = cam.read() 
         _, joint_values = xarm.get_servo_angle(is_radian=True) 
-        calibrator.vis_step(rgb_frame, np.array(joint_values)[:6], input_joint_names=None)   # first 6 joints
+        calibrator.vis_step(rgb_frame, xarm6_joint_values(joint_values), input_joint_names=None)
         time.sleep(0.1)
 
 
@@ -571,15 +609,15 @@ def wrist_realsense_xarm6_example():
         tagmount_link_name="link_base",
         K=K,
         output_file_path=Path("outputs/extrinsics_wrist.yaml"),
-        tag_size=0.048,
         tag_family="tag36h11",
     )
     calibrator = CamTagCalibrator(config)
+    assert_xarm6_example_model(calibrator)
 
     while True:
         rgb_frame = cam.read() 
         _, joint_values = xarm.get_servo_angle(is_radian=True) 
-        calibrator.vis_step(rgb_frame, np.array(joint_values)[:6], input_joint_names=None)   # first 6 joints
+        calibrator.vis_step(rgb_frame, xarm6_joint_values(joint_values), input_joint_names=None)
         time.sleep(0.1)
 
 
@@ -783,5 +821,3 @@ if __name__ == "__main__":
 
     # Side-by-side (optional, only if you imported the probabilistic version into extr_calib.py)
     _ = test_solver(n=30, seed=3, anisotropic=False, noise_rot_deg=20.0, noise_trans=0.03)
-
-

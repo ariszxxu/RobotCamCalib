@@ -1,6 +1,13 @@
 pupil-apriltags
-loguru 
+loguru
 scipy
-opencv-python
+opencv-contrib-python
 numpy
 pyyaml
+matplotlib
+viser
+yourdfpy
+pybullet
+av
+pyudev
+termcolor

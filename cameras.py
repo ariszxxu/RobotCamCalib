@@ -8,9 +8,11 @@ from typing import Any, Optional
 
 import cv2
 import numpy as np
-from termcolor import cprint
-
-from recorder_av_cam import _AVStreamWorker, find_camera_by_usb_port
+try:
+    from termcolor import cprint
+except Exception:
+    def cprint(message, *args, **kwargs):
+        print(message)
 
 
 class Camera(ABC):
@@ -131,6 +133,127 @@ class CV2Camera(Camera):
             return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
         return frame
+
+
+def find_camera_by_usb_port(usb_port: str) -> Optional[str]:
+    """Resolve a Linux USB port id such as ``4-9.4.4.1:1.0`` to ``/dev/videoX``."""
+    try:
+        import pyudev
+    except Exception as exc:
+        raise ImportError("pyudev is required to resolve cameras by USB port id.") from exc
+
+    context = pyudev.Context()
+    for device in context.list_devices(subsystem="video4linux"):
+        if device.parent is None or "usb" not in device.parent.subsystem:
+            continue
+        device_usb_port = device.parent.get("DEVPATH", "").split("/")[-1]
+        if usb_port in device_usb_port:
+            return device.device_node
+    return None
+
+
+class _AVStreamWorker(threading.Thread):
+    """Background PyAV reader for one V4L2 camera, keeping only the latest frame."""
+
+    def __init__(
+        self,
+        name: str,
+        device: str,
+        options: dict[str, str],
+        stream_index: int = 0,
+    ) -> None:
+        super().__init__(daemon=True)
+        self.name = name
+        if device.startswith("/dev/video"):
+            self.device = device
+        else:
+            resolved_device = find_camera_by_usb_port(device)
+            if resolved_device is None:
+                raise RuntimeError(f"Could not find a video device on USB port {device}.")
+            self.device = resolved_device
+
+        self.options = dict(options or {})
+        self.stream_index = stream_index
+        self._container: Any | None = None
+        self._stop_event = threading.Event()
+        self._lock = threading.Lock()
+        self._latest_frame: Optional[np.ndarray] = None
+        self._latest_ts: Optional[float] = None
+        self._opened = False
+        self._open_error: Optional[str] = None
+
+    @property
+    def is_open(self) -> bool:
+        return self._opened
+
+    @property
+    def last_error(self) -> Optional[str]:
+        return self._open_error
+
+    def get_latest(self) -> tuple[Optional[np.ndarray], Optional[float]]:
+        with self._lock:
+            if self._latest_frame is None:
+                return None, None
+            return self._latest_frame.copy(), self._latest_ts
+
+    def stop(self) -> None:
+        self._stop_event.set()
+
+    def close(self) -> None:
+        try:
+            if self._container is not None:
+                self._container.close()
+        except Exception:
+            pass
+        self._container = None
+
+    def run(self) -> None:
+        try:
+            import av
+        except Exception as exc:
+            self._open_error = "PyAV is required for AVCameraManager. Install package `av`."
+            cprint(f"[{self.name}] {self._open_error}", "red")
+            return
+
+        try:
+            self._container = av.open(self.device, format="v4l2", options=self.options)
+            self._opened = True
+            cprint(f"[{self.name}] Opened via PyAV at {self.device} with options={self.options}", "green")
+        except Exception as exc:
+            self._open_error = str(exc)
+            cprint(f"[{self.name}] Failed to open: {exc}", "red")
+            return
+
+        try:
+            video_stream = self._container.streams.video[self.stream_index]
+            video_stream.thread_type = "AUTO"
+        except Exception as exc:
+            self._open_error = f"Failed to get video stream {self.stream_index}: {exc}"
+            cprint(f"[{self.name}] {self._open_error}", "red")
+            self.close()
+            return
+
+        while not self._stop_event.is_set():
+            try:
+                for frame in self._container.decode(video=video_stream.index):
+                    if self._stop_event.is_set():
+                        break
+                    img = frame.to_ndarray(format="bgr24")
+                    ts = time.perf_counter()
+                    with self._lock:
+                        self._latest_frame = img
+                        self._latest_ts = ts
+            except Exception as exc:
+                av_error = getattr(av, "AVError", None)
+                if isinstance(av_error, type) and isinstance(exc, av_error):
+                    cprint(f"[{self.name}] AVError while decoding: {exc}", "yellow")
+                    time.sleep(0.02)
+                else:
+                    cprint(f"[{self.name}] Unexpected error: {exc}", "red")
+                    time.sleep(0.05)
+
+        self.close()
+        cprint(f"[{self.name}] Reader stopped and closed.", "cyan")
 
 
 class AVCameraManager(Camera):

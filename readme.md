@@ -1,24 +1,94 @@
-# Minimal HandEye Calibration
+# Minimal Hand-Eye Calibration
 
-Minimal python implementaiton of camera calibration with full visualization for robotic manipulation. 
+Minimal Python tools for camera intrinsics calibration and robot-camera extrinsics calibration, with Viser visualization and simulation checks.
 
-## Requirements & Installation 
+## Install
 
-`pip install -r requirements.txt`
+```bash
+pip install -r requirements.txt
+```
 
-## Intrinsics Calibration 
+Use `opencv-contrib-python`, not plain `opencv-python`, because the AprilTag grid generator and simulator use `cv2.aruco`.
 
-1. Print `assets/intr_calib_checkerboard.pdf` on an A4 paper with 100% scale.
-2. We provide reference code for calibrating intrinsics for a realsense camera in `realsense_intrinsics_calibration_example` in `intr_calib.py`. Make adaptation to your camera settings in `cameras.py`. 
-3. When running `cam_ui.run()`, put the chessboard A4 in front of your camera and press `s` on your keyboard to store the current image to buffer. After saving tens of pictures, press `q` to get result. 
+## Calibration Targets
 
-## Extrinsics Calibration 
+Intrinsics target:
 
-1. Print `assets/extr_calib_apriltag.pdf` on an A4 paper with 100% scale. Cut out the apriltag and paste it on a flat surface. In eye-on-hand calibration, the AprialTag is assumed to be rigidly attached to the robot base frame, e.g. pasted on the table. In eye-on-base calibration, the apriltag is assumed to be be rigidly attached to a robot end-effector frame.
-2. We provide reference code for calibrating extrinsics for a realsense camera and xarm6 system in `extr_calib.py`. Make adaptation to `thirdview_realsense_xarm6_example` and `wrist_realsense_xarm6_example` based on your camera and robot settings. 
-3. After running the script, open `http://localhost:8080/` in your browser. Drag your robot around in a manual mode, make sure the camera can see the AprialTag. If the AprialTag can be clearly seen in the image, click `click_and_append` button to store the current robot and tag poses to buffer. After saving 8 groups of data, the visualizer will automatically update the solution visualization, i.e. `frames/X_WorldCam` and `frames/X_WorldTag`. The more diverse the data (normally > 50 groups), the better the result. Click `click_and_save` button to save the results.
+- Print `assets/intr_calib_checkerboard.pdf` on A4 at 100% scale.
+- The default checkerboard setting in `intr_calib.py` is `(8, 6)` inner corners with `24.0` square size.
 
-### Result Visualization 
+Extrinsics target:
+
+- Print `assets/apriltag_grid/compact_apriltag_grid_4x4_tag48mm_a3.pdf` on A3 at 100% scale.
+- Keep `assets/apriltag_grid/compact_apriltag_grid_4x4_tag48mm.yaml`; bundle PnP uses it as the board layout.
+- The board uses tag36h11 IDs `0-15`, 48 mm marker edges, and a compact 4x4 layout.
+- Regenerate the PDF, simulator texture, and YAML with:
+
+```bash
+python make_apriltag_grid_pdf.py
+```
+
+## Intrinsics
+
+Configure the camera macros at the top of `intr_calib.py`, then run:
+
+```bash
+python intr_calib.py
+```
+
+The interactive camera window uses:
+
+- `s`: store current frame
+- `p`: pause
+- `c`: clear buffer
+- `q`: finish and calibrate
+
+The default result is saved to `outputs/intrinsics.yaml`.
+
+## Extrinsics
+
+`extr_calib.py` provides two xArm6 examples:
+
+- `thirdview_realsense_xarm6_example()`
+- `wrist_realsense_xarm6_example()`
+
+Before collecting real data, update the camera, robot IP, URDF path, and mount link names in the selected example.
+
+Important: the bundled robot model is xArm6 (`assets/robots/xarm6/xarm6_wo_ee.urdf`), not xArm7. For xArm7 or another robot, change the URDF, mount link names, and joint-value handling together. The xArm6 examples assert exactly 6 actuated joint values so a 7-axis setup does not silently use the wrong model.
+
+During calibration, open `http://localhost:8080/` and use the Viser buttons:
+
+- `click_and_append`: append the current robot pose and detected board pose, then solve when enough samples exist.
+- `click_and_save`: save the current estimates.
+
+Default outputs:
+
+- third-view: `outputs/extrinsics.yaml`
+- wrist: `outputs/extrinsics_wrist.yaml`
+
+## Simulation Checks
+
+Intrinsics simulation, no robot:
+
+```bash
+python sim_tests/intr_calib_sim.py --samples 40
+```
+
+PyBullet extrinsics simulation, default third-view xArm6 and 4x4 AprilTag board:
+
+```bash
+python sim_tests/pybullet_extr_calib_sim.py --mode thirdview --run batch --samples 30
+```
+
+OpenCV solver comparison on the same simulated third-view data:
+
+```bash
+python opencv_extr_calib.py --sim-thirdview --samples 30
+```
+
+Simulation CSV/plot/YAML outputs are written under `sim_tests/outputs/`.
+
+## Visualization Examples
 
 <table>
   <tr>
@@ -42,4 +112,3 @@ Minimal python implementaiton of camera calibration with full visualization for 
     </td>
   </tr>
 </table>
-

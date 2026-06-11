@@ -2,7 +2,6 @@ import numpy as np
 import cv2
 import yaml
 import os
-from datetime import datetime
 from typing import Any, Dict, Tuple, List, Optional
 
 # Fixed checkerboard you print from PDF (edit if needed)
@@ -15,7 +14,7 @@ MIN_SAMPLES: int = 12                     # minimum valid detections recommended
 # personal/lab parameter tables for the actual calibration resolution.
 SUPPORTED_CAMERA_TYPES: Tuple[str, ...] = ("realsense", "cv2", "av", "oak1w")
 DEFAULT_CAMERA_TYPE: str = "cv2"
-DEFAULT_INTRINSICS_OUTPUT_TEMPLATE: str = "outputs/intrinsics_{camera_name}_{width}x{height}.yaml"
+DEFAULT_INTRINSICS_OUTPUT_PATH: str = "outputs/intrinsics.yaml"
 
 # RealSense camera macros.
 REALSENSE_CAMERA_NAME: str = "realsense"
@@ -74,20 +73,7 @@ def get_cv2_camera_config(camera_name: str) -> dict[str, Any]:
 
 
 def default_intrinsics_output_path(camera_name: str, width: int, height: int) -> str:
-    return DEFAULT_INTRINSICS_OUTPUT_TEMPLATE.format(
-        camera_name=camera_name,
-        width=width,
-        height=height,
-    )
-
-
-def append_timestamp_to_yaml_path(path: str) -> str:
-    """Append a MMDD_HHMMSS timestamp before the .yaml suffix."""
-    root, ext = os.path.splitext(path)
-    timestamp = datetime.now().strftime("%m%d_%H%M%S")
-    if ext.lower() == ".yaml":
-        return f"{root}_{timestamp}{ext}"
-    return f"{path}_{timestamp}"
+    return DEFAULT_INTRINSICS_OUTPUT_PATH
 
 class SimpleIntrinsicsCalibrator:
     """
@@ -268,7 +254,6 @@ def realsense_intrinsics_calibration_example():
         captured_width,
         captured_height,
     )
-    output_path = append_timestamp_to_yaml_path(output_path)
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     intr_calib.save_yaml(output_path)
     print(f"Saved intrinsics to {output_path}")
@@ -359,7 +344,6 @@ def cv2cam_intrinsics_calibration(
             captured_width,
             captured_height,
         )
-    output_path = append_timestamp_to_yaml_path(output_path)
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     intr_calib.save_yaml(output_path)
     print(f"Saved intrinsics to {output_path}")
@@ -410,7 +394,6 @@ def avcam_intrinsics_calibration():
         captured_width,
         captured_height,
     )
-    output_path = append_timestamp_to_yaml_path(output_path)
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     intr_calib.save_yaml(output_path)
     print(f"Saved intrinsics to {output_path}")
@@ -500,7 +483,6 @@ def oak1w_intrinsics_calibration(camera_name: Optional[str] = None):
         captured_width,
         captured_height,
     )
-    output_path = append_timestamp_to_yaml_path(output_path)
     intr_calib.save_yaml(output_path)
     print(f"Saved intrinsics to {output_path}")
 
