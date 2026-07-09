@@ -43,6 +43,7 @@ def start_cv2_camera_capture(
     width: Optional[int] = None,
     height: Optional[int] = None,
     fps: Optional[int] = None,
+    fourcc: Optional[str] = None,
     api_pref: Optional[int] = None,
     buffer_size: Optional[int] = 1,
     warmup_s: float = 0.1,
@@ -53,6 +54,10 @@ def start_cv2_camera_capture(
     if not cap.isOpened():
         raise RuntimeError(f"Failed to open source: {src}")
 
+    if fourcc is not None:
+        if len(fourcc) != 4:
+            raise ValueError(f"fourcc must be 4 characters, got: {fourcc}")
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*fourcc))
     if width is not None:
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, int(width))
     if height is not None:
@@ -93,6 +98,7 @@ class CV2Camera(Camera):
         width: Optional[int] = None,
         height: Optional[int] = None,
         fps: Optional[int] = None,
+        fourcc: Optional[str] = None,
         convert_to_rgb: bool = True,
         api_pref: Optional[int] = None,
         buffer_size: Optional[int] = 1,
@@ -101,6 +107,7 @@ class CV2Camera(Camera):
         self.width = width
         self.height = height
         self.fps = fps
+        self.fourcc = fourcc
         self.convert_to_rgb = convert_to_rgb
         self.api_pref = api_pref
         self.buffer_size = buffer_size
@@ -112,6 +119,7 @@ class CV2Camera(Camera):
             width=self.width,
             height=self.height,
             fps=self.fps,
+            fourcc=self.fourcc,
             api_pref=self.api_pref,
             buffer_size=self.buffer_size,
         )

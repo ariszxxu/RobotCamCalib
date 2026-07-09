@@ -20,6 +20,13 @@ class InteractiveCamera:
         undistort_fn: Optional[Callable[[np.ndarray], np.ndarray]] = None,
         buffer_max: Optional[int] = None,
         checkerboard: Optional[tuple[int, int]] = None,
+        corner_detector: Optional[Callable[[np.ndarray], tuple[bool, Optional[np.ndarray]]]] = None,
+        terminal_fps_interval_s: Optional[float] = None,
+        auto_store_valid: bool = False,
+        auto_store_cooldown_s: float = 0.8,
+        auto_store_dir: Optional[str] = None,
+        auto_store_prefix: str = "sample",
+        auto_store_ext: str = "png",
     ) -> None:
         self.cam = camera
         self.window_name = window_name
@@ -29,7 +36,19 @@ class InteractiveCamera:
         self.buffer_max = buffer_max
 
         self.checkerboard = checkerboard
-        self.detection_enabled = checkerboard is not None
+        self.corner_detector = corner_detector
+        self.detection_available = checkerboard is not None
+        self.detection_enabled = self.detection_available
+        self.terminal_fps_interval_s = terminal_fps_interval_s
+        self.auto_store_valid = bool(auto_store_valid)
+        self.auto_store_cooldown_s = float(auto_store_cooldown_s)
+        self.auto_store_dir = auto_store_dir
+        self.auto_store_prefix = auto_store_prefix
+        self.auto_store_ext = auto_store_ext.lower().lstrip(".") or "png"
+        self.last_auto_store_time = 0.0
+        self.last_auto_store_frame_index = -1
+        self.frame_index = -1
+        self.last_status_msg = ""
         self.last_detection_ok = False
         self.last_corners: Optional[np.ndarray] = None
 
@@ -37,7 +56,11 @@ class InteractiveCamera:
         self.paused = False
         self.show_help = True
         self.last_time = time.time()
+        self.last_terminal_fps_time = self.last_time
         self.fps = 0.0
+        self.read_ms = 0.0
+        self.detect_ms = 0.0
+        self.display_ms = 0.0
 
     def get_buffer_array(self) -> Optional[np.ndarray]:
         if not self.buffer:
@@ -73,23 +96,36 @@ class InteractiveCamera:
         with self.cam as cam:
             while True:
                 if not self.paused or last_frame_rgb is None:
+                    read_start = time.perf_counter()
                     frame_rgb = cam.read()
+                    self.frame_index += 1
                     if self.undistort_fn is not None:
                         try:
                             frame_rgb = self.undistort_fn(frame_rgb)
                         except Exception:
                             pass
+                    self.read_ms = (time.perf_counter() - read_start) * 1000.0
                     last_frame_rgb = frame_rgb
                     self._update_fps()
 
                 disp_bgr = cv2.cvtColor(last_frame_rgb, cv2.COLOR_RGB2BGR)
 
                 if self.detection_enabled:
+                    detect_start = time.perf_counter()
                     gray = cv2.cvtColor(disp_bgr, cv2.COLOR_BGR2GRAY)
-                    ok, corners = self._detect_corners(gray, self.checkerboard)
+                    if self.corner_detector is not None:
+                        ok, corners = self.corner_detector(gray)
+                    else:
+                        ok, corners = self._detect_corners(gray, self.checkerboard)
                     self.last_detection_ok = ok
                     self.last_corners = corners
                     disp_bgr = self._overlay_detections(disp_bgr, ok, corners)
+                    self.detect_ms = (time.perf_counter() - detect_start) * 1000.0
+                else:
+                    self.detect_ms = 0.0
+
+                auto_stored_this_frame = self._maybe_auto_store(last_frame_rgb)
+                self._print_terminal_fps(last_frame_rgb)
 
                 if self.display_scale is not None and self.display_scale > 0:
                     disp_bgr = cv2.resize(
@@ -100,19 +136,35 @@ class InteractiveCamera:
                         interpolation=cv2.INTER_AREA,
                     )
 
-                cv2.imshow(self.window_name, self._draw_hud(disp_bgr))
+                display_start = time.perf_counter()
+                cv2.imshow(self.window_name, self._draw_hud(disp_bgr, self.last_status_msg))
 
                 key = cv2.waitKey(1) & 0xFF
+                self.display_ms = (time.perf_counter() - display_start) * 1000.0
                 if key == ord("q") or key == 27:
                     break
                 if key == ord("h"):
                     self.show_help = not self.show_help
                 elif key == ord("p"):
                     self.paused = not self.paused
+                elif key == ord("d") and self.detection_available:
+                    self.detection_enabled = not self.detection_enabled
+                    self.last_detection_ok = False
+                    self.last_corners = None
+                    print(f"[INFO] live chessboard detection enabled = {self.detection_enabled}", flush=True)
                 elif key == ord("c"):
                     self.clear_buffer()
+                    self.last_auto_store_time = 0.0
+                    self.last_auto_store_frame_index = -1
+                    self.last_status_msg = "cleared"
                 elif key == ord("s") and last_frame_rgb is not None:
-                    self._store(last_frame_rgb)
+                    if auto_stored_this_frame:
+                        self.last_status_msg = "manual skipped: auto stored this frame"
+                        print(f"[INFO] {self.last_status_msg}", flush=True)
+                        continue
+                    self._store(last_frame_rgb, capture_mode="manual")
+                    self.last_status_msg = f"manually stored sample {len(self.buffer)}"
+                    print(f"[INFO] {self.last_status_msg}", flush=True)
 
         cv2.destroyWindow(self.window_name)
         return self.get_buffer_array()
@@ -138,6 +190,30 @@ class InteractiveCamera:
             corners = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)
 
         return ok, corners
+
+    def _maybe_auto_store(self, frame_rgb: np.ndarray) -> bool:
+        if not self.auto_store_valid:
+            return False
+        if not self.detection_enabled or not self.last_detection_ok:
+            return False
+        if self.frame_index == self.last_auto_store_frame_index:
+            return False
+
+        now = time.time()
+        if now - self.last_auto_store_time < self.auto_store_cooldown_s:
+            return False
+
+        stored_path = self._store(frame_rgb, capture_mode="auto")
+        self.last_auto_store_time = now
+        self.last_auto_store_frame_index = self.frame_index
+        self.last_status_msg = f"auto stored sample {len(self.buffer)}"
+        image_part = f", image={stored_path}" if stored_path is not None else ""
+        print(
+            f"[INFO] {self.last_status_msg}: frame={self.frame_index}, "
+            f"buffer={len(self.buffer)}{image_part}",
+            flush=True,
+        )
+        return True
 
     def _overlay_detections(
         self,
@@ -189,6 +265,29 @@ class InteractiveCamera:
         if dt > 0:
             self.fps = 1.0 / dt
 
+    def _print_terminal_fps(self, frame_rgb: np.ndarray) -> None:
+        if self.terminal_fps_interval_s is None or self.terminal_fps_interval_s <= 0:
+            return
+
+        now = time.time()
+        if now - self.last_terminal_fps_time < self.terminal_fps_interval_s:
+            return
+
+        self.last_terminal_fps_time = now
+        height, width = frame_rgb.shape[:2]
+        if self.detection_enabled:
+            detection = "yes" if self.last_detection_ok else "no"
+            detection_part = f" chessboard={detection}"
+        else:
+            detection_part = ""
+        print(
+            f"[FPS] {self.fps:5.1f} frame={width}x{height}"
+            f"{detection_part} read={self.read_ms:5.1f}ms"
+            f" detect={self.detect_ms:5.1f}ms display={self.display_ms:5.1f}ms"
+            f" buffer={len(self.buffer)} paused={self.paused}",
+            flush=True,
+        )
+
     def _draw_hud(self, bgr: np.ndarray, msg: str = "") -> np.ndarray:
         height, width = bgr.shape[:2]
         y = 28
@@ -210,8 +309,8 @@ class InteractiveCamera:
 
         if self.show_help:
             lines = [
-                "[s] store    [p] pause    [h] help on/off    [c] clear buffer    [q] quit",
-                f"buffer: {len(self.buffer)}    paused: {self.paused}",
+                "[s] store    [p] pause    [d] detect on/off    [h] help    [c] clear    [q] quit",
+                f"buffer: {len(self.buffer)}    paused: {self.paused}    detect: {self.detection_enabled}    auto: {self.auto_store_valid}",
             ]
             for line in lines:
                 cv2.putText(
@@ -252,7 +351,23 @@ class InteractiveCamera:
 
         return bgr
 
-    def _store(self, frame_rgb: np.ndarray) -> None:
+    def _store(self, frame_rgb: np.ndarray, capture_mode: str = "manual") -> Optional[str]:
         if self.buffer_max is not None and len(self.buffer) >= self.buffer_max:
             self.buffer.pop(0)
         self.buffer.append(frame_rgb.copy())
+        if self.auto_store_dir is None:
+            return None
+
+        os.makedirs(self.auto_store_dir, exist_ok=True)
+        sample_index = len(self.buffer) - 1
+        path = os.path.join(
+            self.auto_store_dir,
+            (
+                f"{self.auto_store_prefix}_{sample_index:04d}_"
+                f"frame_{self.frame_index:06d}_{capture_mode}.{self.auto_store_ext}"
+            ),
+        )
+        bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
+        if not cv2.imwrite(path, bgr):
+            raise RuntimeError(f"Failed to write: {path}")
+        return path
