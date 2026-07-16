@@ -13,8 +13,9 @@ import yaml
 
 
 # ---------------------------- User macros ---------------------------- #
-# supported: "charuco", "apriltag_grid"
+# supported: "charuco", "charuco_scale0p25", "apriltag_grid"
 CALIBRATION_TARGET = "charuco"
+CHARUCO_TARGET_MODES = frozenset({"charuco", "charuco_scale0p25"})
 
 # Defaults from the provided ChArUco board note. Used when
 # CALIBRATION_TARGET == "charuco".
@@ -24,6 +25,15 @@ CHARUCO_SQUARE_LENGTH = 0.04
 CHARUCO_MARKER_LENGTH = 0.03
 CHARUCO_DICTIONARY = "DICT_5X5_50"
 CHARUCO_LEGACY_PATTERN = False
+
+# Quarter-scale A4 board generated from the default ChArUco target. This is a
+# separate calibration mode so its metric dimensions cannot be confused with
+# the original 40 mm / 30 mm board.
+CHARUCO_SCALE0P25_CONFIG = (
+    Path(__file__).resolve().parent
+    / "outputs/charuco_a4_scale0p25/"
+    "charuco_7x5_scale0p25_square10mm_marker7p5mm_DICT_5X5_50_A4_landscape.yaml"
+)
 
 # Same AprilGrid board used by extr_calib_fingertip_apriltag_grid.py.
 APRILTAG_GRID_YAML = Path(
@@ -36,18 +46,29 @@ CHARUCO_MIN_GRID_ROWS_PER_SAMPLE = 2
 CHARUCO_MIN_GRID_COLS_PER_SAMPLE = 4
 CHARUCO_MIN_BOARD_BBOX_FRACTION = 0.35
 
-# CV2 camera defaults. These mirror the style in intr_calib.py and can be
-# overridden from the command line.
+# Previous CV2 camera defaults. Kept here for reference.
+# DEFAULT_CV2_CAMERA_NAME: Optional[str] = None
+# DEFAULT_CV2_SOURCE: str = "0"
+# DEFAULT_CV2_PORT: Optional[str] = "3-8:1.0"
+# DEFAULT_CV2_WIDTH: Optional[int] = 2592
+# DEFAULT_CV2_HEIGHT: Optional[int] = 1944
+# DEFAULT_CV2_FPS: Optional[int] = 50
+# DEFAULT_CV2_FOURCC: Optional[str] = "MJPG"
+# DEFAULT_OUTPUT_NAME: Optional[str] = None
+# DEFAULT_DISPLAY_SCALE: Optional[float] = 0.4
+# DEFAULT_WINDOW_NAME: str = "thumb_web_cam ChArUco intrinsics"
+
+# Intel RealSense D435 RGB defaults: 1920x1080 @ 30 FPS, YUYV via V4L2.
 DEFAULT_CV2_CAMERA_NAME: Optional[str] = None
-DEFAULT_CV2_SOURCE: str = "0"
-DEFAULT_CV2_PORT: Optional[str] = "3-5.4.3.4.2:1.0"
-DEFAULT_CV2_WIDTH: Optional[int] = 2592
-DEFAULT_CV2_HEIGHT: Optional[int] = 1944
-DEFAULT_CV2_FPS: Optional[int] = 50
-DEFAULT_CV2_FOURCC: Optional[str] = "MJPG"
-DEFAULT_OUTPUT_NAME: Optional[str] = None
+DEFAULT_CV2_SOURCE: str = "/dev/video4"
+DEFAULT_CV2_PORT: Optional[str] = None
+DEFAULT_CV2_WIDTH: Optional[int] = 1920
+DEFAULT_CV2_HEIGHT: Optional[int] = 1080
+DEFAULT_CV2_FPS: Optional[int] = 30
+DEFAULT_CV2_FOURCC: Optional[str] = "YUYV"
+DEFAULT_OUTPUT_NAME: Optional[str] = "d435_color"
 DEFAULT_DISPLAY_SCALE: Optional[float] = 0.4
-DEFAULT_WINDOW_NAME: str = "thumb_web_cam ChArUco intrinsics"
+DEFAULT_WINDOW_NAME: str = "D435 RGB ChArUco intrinsics"
 CAMERA_MODEL: str = "pinhole"  # supported: "pinhole", "fisheye"
 
 AUTO_SAVE_VALID_IMAGES: bool = True
@@ -55,7 +76,11 @@ AUTO_SAVE_COOLDOWN_S: float = 0.8
 SAMPLE_IMAGE_ROOT: Path = (
     Path("outputs/intrinsics_apriltag_grid_samples")
     if CALIBRATION_TARGET == "apriltag_grid"
-    else Path("outputs/intrinsics_charuco_samples")
+    else (
+        Path("outputs/intrinsics_charuco_scale0p25_samples")
+        if CALIBRATION_TARGET == "charuco_scale0p25"
+        else Path("outputs/intrinsics_charuco_samples")
+    )
 )
 
 OPEN_TEST_NUM_FRAMES: int = 10
@@ -75,6 +100,55 @@ class AprilTagGridBoard:
     board_width_m: float
     board_height_m: float
     min_corners_per_sample: int = MIN_CORNERS_PER_SAMPLE
+
+
+def is_charuco_target(target: Optional[str] = None) -> bool:
+    return (CALIBRATION_TARGET if target is None else target) in CHARUCO_TARGET_MODES
+
+
+def charuco_mode_defaults() -> dict:
+    defaults = {
+        "squares_x": CHARUCO_SQUARES_X,
+        "squares_y": CHARUCO_SQUARES_Y,
+        "square_length": CHARUCO_SQUARE_LENGTH,
+        "marker_length": CHARUCO_MARKER_LENGTH,
+        "dictionary": CHARUCO_DICTIONARY,
+        "legacy_pattern": CHARUCO_LEGACY_PATTERN,
+    }
+    if CALIBRATION_TARGET != "charuco_scale0p25":
+        return defaults
+
+    config_path = CHARUCO_SCALE0P25_CONFIG.expanduser().resolve()
+    if not config_path.is_file():
+        raise FileNotFoundError(
+            f"ChArUco scale-0.25 mode config does not exist: {config_path}"
+        )
+    with config_path.open("r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    if not isinstance(data, dict) or data.get("target_type") != "charuco":
+        raise ValueError(f"Expected target_type=charuco in {config_path}")
+    config = data.get("charuco")
+    if not isinstance(config, dict):
+        raise ValueError(f"Missing charuco mapping in {config_path}")
+
+    required = (
+        "squares_x",
+        "squares_y",
+        "square_length",
+        "marker_length",
+        "dictionary",
+    )
+    missing = [key for key in required if key not in config]
+    if missing:
+        raise ValueError(f"Missing ChArUco keys in {config_path}: {missing}")
+    return {
+        "squares_x": int(config["squares_x"]),
+        "squares_y": int(config["squares_y"]),
+        "square_length": float(config["square_length"]),
+        "marker_length": float(config["marker_length"]),
+        "dictionary": str(config["dictionary"]),
+        "legacy_pattern": bool(config.get("legacy_pattern", False)),
+    }
 
 
 def append_timestamp_to_yaml_path(path: str) -> str:
@@ -471,13 +545,27 @@ def detect_apriltag_grid_points(
     )
 
 
+def get_charuco_board_corners(board) -> np.ndarray:
+    """Return ChArUco chessboard corners across OpenCV API versions."""
+    if hasattr(board, "getChessboardCorners"):
+        corners = board.getChessboardCorners()
+    elif hasattr(board, "chessboardCorners"):
+        corners = board.chessboardCorners
+    else:
+        raise AttributeError(
+            "Unsupported OpenCV ChArUco board API: expected "
+            "getChessboardCorners() or chessboardCorners."
+        )
+    return np.asarray(corners, dtype=np.float32).reshape(-1, 3)
+
+
 def charuco_to_calibration_points(board, charuco_corners, charuco_ids):
     if charuco_corners is None or charuco_ids is None:
         return None, None
 
     ids = charuco_ids.reshape(-1).astype(int)
     corners = charuco_corners.reshape(-1, 2).astype(np.float32)
-    board_corners = board.getChessboardCorners().astype(np.float32)
+    board_corners = get_charuco_board_corners(board)
 
     valid = (ids >= 0) & (ids < len(board_corners))
     if not np.all(valid):
@@ -923,7 +1011,7 @@ def calibrate_target_samples(
     camera_model: str,
     min_corners_per_sample: int,
 ):
-    if CALIBRATION_TARGET == "charuco":
+    if is_charuco_target():
         return calibrate_charuco_samples(samples, image_size, target, camera_model, min_corners_per_sample)
     if CALIBRATION_TARGET == "apriltag_grid":
         return calibrate_apriltag_grid_samples(samples, image_size, camera_model, min_corners_per_sample)
@@ -1023,7 +1111,7 @@ def save_yaml(
         "rejected_indices": [int(v) for v in results.get("rejected_indices", [])],
         "samples": results.get("sample_metadata", []),
     }
-    if CALIBRATION_TARGET == "charuco":
+    if is_charuco_target():
         data["charuco"] = {
             "squares_x": int(args.squares_x),
             "squares_y": int(args.squares_y),
@@ -1032,6 +1120,11 @@ def save_yaml(
             "dictionary": str(args.dictionary),
             "legacy_pattern": bool(args.legacy_pattern),
         }
+        if CALIBRATION_TARGET == "charuco_scale0p25":
+            data["charuco"]["mode_config"] = str(
+                CHARUCO_SCALE0P25_CONFIG.expanduser().resolve()
+            )
+            data["charuco"]["linear_scale_from_source"] = 0.25
     elif CALIBRATION_TARGET == "apriltag_grid":
         data["apriltag_grid"] = {
             "yaml": str(APRILTAG_GRID_YAML.expanduser().resolve()),
@@ -1057,7 +1150,7 @@ def save_yaml(
 def default_output_path(camera_name: str, image_size: tuple[int, int], camera_model: str) -> str:
     width, height = image_size
     model_part = "" if camera_model == "pinhole" else f"_{camera_model}"
-    target_part = "apriltag_grid" if CALIBRATION_TARGET == "apriltag_grid" else "charuco"
+    target_part = str(CALIBRATION_TARGET)
     return f"outputs/intrinsics_{camera_name}{model_part}_{target_part}_{width}x{height}.yaml"
 
 
@@ -1076,7 +1169,7 @@ def run_interactive_calibration(args: argparse.Namespace) -> str:
     if args.port is not None:
         src = str(args.port)
 
-    if CALIBRATION_TARGET == "charuco":
+    if is_charuco_target():
         board, dictionary = create_charuco_board(
             args.squares_x,
             args.squares_y,
@@ -1110,8 +1203,10 @@ def run_interactive_calibration(args: argparse.Namespace) -> str:
     image_size: Optional[tuple[int, int]] = None
 
     print(f"[INFO] Calibration target: {CALIBRATION_TARGET}")
-    if CALIBRATION_TARGET == "charuco":
+    if is_charuco_target():
         print(f"[INFO] ChArUco board: {args.squares_x}x{args.squares_y}, square={args.square_length}, marker={args.marker_length}, dict={args.dictionary}, legacy={args.legacy_pattern}")
+        if CALIBRATION_TARGET == "charuco_scale0p25":
+            print(f"[INFO] ChArUco mode config: {CHARUCO_SCALE0P25_CONFIG.expanduser().resolve()}")
     else:
         print(
             f"[INFO] AprilGrid board: yaml={board.path}, family={board.tag_family}, "
@@ -1138,7 +1233,7 @@ def run_interactive_calibration(args: argparse.Namespace) -> str:
                 frame_index += 1
 
                 gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
-                if CALIBRATION_TARGET == "charuco":
+                if is_charuco_target():
                     charuco_corners, charuco_ids, marker_corners, marker_ids = detector.detect(gray)
                     last_detection = {
                         "charuco_corners": charuco_corners,
@@ -1163,7 +1258,7 @@ def run_interactive_calibration(args: argparse.Namespace) -> str:
             marker_corners = last_detection.get("marker_corners")
             marker_ids = last_detection.get("marker_ids")
             detected_markers = 0 if marker_ids is None else int(len(marker_ids))
-            if CALIBRATION_TARGET == "charuco":
+            if is_charuco_target():
                 charuco_corners = last_detection.get("charuco_corners")
                 charuco_ids = last_detection.get("charuco_ids")
                 detected_corners = 0 if charuco_ids is None else int(len(charuco_ids))
@@ -1192,7 +1287,7 @@ def run_interactive_calibration(args: argparse.Namespace) -> str:
             elif frame_index == last_auto_frame_index:
                 last_auto_reason = "same frame"
             else:
-                if CALIBRATION_TARGET == "charuco":
+                if is_charuco_target():
                     sample = store_sample(
                         samples,
                         sample_image_dir,
@@ -1229,7 +1324,7 @@ def run_interactive_calibration(args: argparse.Namespace) -> str:
             vis = last_frame.copy()
             if marker_corners is not None and marker_ids is not None:
                 cv2.aruco.drawDetectedMarkers(vis, marker_corners, marker_ids)
-            if CALIBRATION_TARGET == "charuco":
+            if is_charuco_target():
                 if charuco_corners is not None and charuco_ids is not None:
                     cv2.aruco.drawDetectedCornersCharuco(vis, charuco_corners, charuco_ids)
             elif marker_corners is not None and marker_ids is not None:
@@ -1293,7 +1388,7 @@ def run_interactive_calibration(args: argparse.Namespace) -> str:
                         f"[WARN] Not stored: target quality failed: {target_quality_reason}."
                     )
                     continue
-                if CALIBRATION_TARGET == "charuco":
+                if is_charuco_target():
                     sample = store_sample(
                         samples,
                         sample_image_dir,
@@ -1366,6 +1461,7 @@ def run_interactive_calibration(args: argparse.Namespace) -> str:
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
+    charuco_defaults = charuco_mode_defaults()
     parser = argparse.ArgumentParser(
         description="Interactive CV2 ChArUco intrinsics calibration."
     )
@@ -1381,12 +1477,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-timestamp", dest="timestamp", action="store_false")
     parser.set_defaults(timestamp=True)
 
-    parser.add_argument("--squares-x", type=int, default=CHARUCO_SQUARES_X)
-    parser.add_argument("--squares-y", type=int, default=CHARUCO_SQUARES_Y)
-    parser.add_argument("--square-length", type=float, default=CHARUCO_SQUARE_LENGTH)
-    parser.add_argument("--marker-length", type=float, default=CHARUCO_MARKER_LENGTH)
-    parser.add_argument("--dictionary", default=CHARUCO_DICTIONARY)
-    parser.add_argument("--legacy-pattern", action="store_true", default=CHARUCO_LEGACY_PATTERN)
+    parser.add_argument("--squares-x", type=int, default=charuco_defaults["squares_x"])
+    parser.add_argument("--squares-y", type=int, default=charuco_defaults["squares_y"])
+    parser.add_argument("--square-length", type=float, default=charuco_defaults["square_length"])
+    parser.add_argument("--marker-length", type=float, default=charuco_defaults["marker_length"])
+    parser.add_argument("--dictionary", default=charuco_defaults["dictionary"])
+    parser.add_argument(
+        "--legacy-pattern",
+        action="store_true",
+        default=charuco_defaults["legacy_pattern"],
+    )
     parser.add_argument(
         "--min-corners",
         type=int,

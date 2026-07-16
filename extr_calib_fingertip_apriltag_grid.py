@@ -18,7 +18,7 @@ from intr_calib_charuco import start_capture
 
 
 # ---------------------------- User macros ---------------------------- #
-THIRD_VIEW_PORT = "3-11.1:1.0"
+THIRD_VIEW_PORT = "3-7:1.0"
 THIRD_VIEW_INTRINSICS_YAML = Path(
     "/home/ps/RobotCamCalib1/outputs/intrinsics_third_view_cv2_charuco_1920x1080_0704_222919.yaml"
 )
@@ -29,13 +29,15 @@ CALIB_CAMERA_INPUT_MODE = "cv2_pair"
 ROOT_CAMERA_NAME = "thumb_web_cam"
 TIP_CAMERA_NAME = "middle_finger_cam"
 CV2_CAMERA_TO_PORT: dict[str, str] = {
-    "thumb_web_cam": "3-5.4.3.4.4:1.0",
+    "thumb_web_cam": "3-9:1.0",
     "middle_finger_cam": "3-10:1.0",
 }
 CV2_CAMERA_TO_INTRINSICS_YAML: dict[str, str] = {
-    # "thumb_web_cam": "/home/ps/RobotCamCalib1/outputs/intrinsics_cv2_fisheye_charuco_2592x1944_0707_215704.yaml",
-    "thumb_web_cam": "/home/ps/RobotCamCalib1/outputs/intrinsics_thumb_web_cam_fisheye_charuco_2592x1944_0708_020331.yaml",
-    "middle_finger_cam": "/home/ps/RobotCamCalib1/outputs/intrinsics_apriltag_grid_offline_eval_combined_0707_233141_233955/intrinsics_cv2_apriltag_grid_1920x1080_combined_0707_233141_233955_best_filtered.yaml",
+    "thumb_web_cam": "/home/ps/RobotCamCalib1/outputs/intrinsics_cam0_fisheye_2592x1944_0703_230535.yaml",
+    "middle_finger_cam": (
+        "/home/ps/RobotCamCalib1/outputs/intrinsics_charuco_offline_eval_0708_150154_0708_150928/"
+        "intrinsics_None_charuco_2592x1944_0708_150154_offline_filtered.yaml"
+    ),
 }
 CV2_CAMERA_FPS = 50
 CV2_CAMERA_FOURCC = "MJPG"
@@ -98,7 +100,7 @@ FINGERTIP_AV_CAMERA_TO_PORT = {"cam": "3-5.4.4.3:1.0"}
 ROOT_INTRINSICS_YAML = Path(CV2_CAMERA_TO_INTRINSICS_YAML[ROOT_CAMERA_NAME])
 TIP_INTRINSICS_YAML = Path(CV2_CAMERA_TO_INTRINSICS_YAML[TIP_CAMERA_NAME])
 APRILCUBE_CFG_DIR = Path(
-    "/home/ps/project/ConSensV2Lab/thirdparty/aprilcube/cubes/cube_april_36h11_100_105_1x1x1_50mm"
+    "/home/ps/project/ConSensV2Lab/thirdparty/aprilcube/cubes/cube_april_36h11_100_123_2x2x2_outer62p5mm"
 )
 
 
@@ -108,7 +110,7 @@ FINGERTIP_AV_FPS = 25
 FINGERTIP_AV_FOURCC = "mjpeg"
 
 DISPLAY_SCALE_THIRD = 0.5
-DISPLAY_SCALE_FINGERTIP = 0.5
+DISPLAY_SCALE_FINGERTIP = 0.25
 THIRD_VIEW_WINDOW_NAME = "third-view E: AprilTag grid B + AprilCube Q"
 _DISPLAY_WINDOW_THREAD_STARTED = False
 MIN_SAMPLES_TO_SAVE = 8
@@ -125,6 +127,7 @@ MAX_APRILTAG_GRID_REPROJ_PX = 2.0
 MAX_FISHEYE_APRILTAG_GRID_REPROJ_PX = 3.0
 MAX_APRILCUBE_REPROJ_PX = 2.0
 MIN_APRILCUBE_TAGS = 1
+MAX_APRILCUBE_MULTI_TAG_FACE_REPROJ_PX = 5.0
 MIN_BOARD_ROT_DELTA_DEG = 4.0
 MIN_BOARD_TRANS_DELTA_M = 0.015
 SAMPLE_IMAGE_ROOT = Path("outputs/extrinsics_fingertip_apriltag_grid_samples")
@@ -195,6 +198,14 @@ class PoseDetection:
     reproj_error: float = float("inf")
     message: str = ""
     vis: Optional[np.ndarray] = None
+
+
+@dataclass
+class AprilCubeDetectionContext:
+    detector: Any
+    face_id_sets: dict[str, set[int]]
+    tag_corner_map_mm: dict[int, np.ndarray]
+    multi_tag_faces: set[str]
 
 
 @dataclass
@@ -737,7 +748,7 @@ def ensure_aprilcube_on_path() -> None:
         sys.path.insert(0, src)
 
 
-def create_aprilcube_detector(intr: Intrinsics):
+def create_aprilcube_detector(intr: Intrinsics) -> AprilCubeDetectionContext:
     ensure_aprilcube_on_path()
     import aprilcube  # noqa: PLC0415
 
@@ -747,21 +758,194 @@ def create_aprilcube_detector(intr: Intrinsics):
         "cx": float(intr.K[0, 2]),
         "cy": float(intr.K[1, 2]),
     }
-    return aprilcube.detector(
+    detector = aprilcube.detector(
         APRILCUBE_CFG_DIR,
         intrinsic_cfg=intrinsic_cfg,
         dist_coeffs=intr.dist,
         enable_filter=False,
         fast=False,
     )
+    face_id_sets = {
+        str(face_name): {int(tag_id) for tag_id in tag_ids}
+        for face_name, tag_ids in detector.face_id_sets.items()
+    }
+    multi_tag_faces = {
+        face_name for face_name, tag_ids in face_id_sets.items() if len(tag_ids) > 1
+    }
+    mode = "multi-tag-face" if multi_tag_faces else "single-tag-face"
+    face_sizes = ", ".join(
+        f"{face_name}:{len(tag_ids)}" for face_name, tag_ids in sorted(face_id_sets.items())
+    )
+    print(f"[INFO] AprilCube pose mode={mode}, cfg face tag counts=[{face_sizes}]")
+    return AprilCubeDetectionContext(
+        detector=detector,
+        face_id_sets=face_id_sets,
+        tag_corner_map_mm={
+            int(tag_id): np.asarray(corners, dtype=np.float64).reshape(4, 3)
+            for tag_id, corners in detector.tag_corner_map.items()
+        },
+        multi_tag_faces=multi_tag_faces,
+    )
 
 
-def detect_aprilcube_pose(frame_bgr: np.ndarray, detector: Any) -> PoseDetection:
+def solve_aprilcube_multi_tag_face_pose(
+    result: dict[str, Any],
+    context: AprilCubeDetectionContext,
+    intr: Intrinsics,
+    frame_size: tuple[int, int],
+) -> Optional[tuple[np.ndarray, np.ndarray, float, str, list[int]]]:
+    visible_faces = {str(face_name) for face_name in result.get("visible_faces", set())}
+    if len(visible_faces) != 1:
+        return None
+
+    face_name = next(iter(visible_faces))
+    if face_name not in context.multi_tag_faces:
+        return None
+
+    face_ids = context.face_id_sets[face_name]
+    detections = [
+        (int(tag_id), np.asarray(corners, dtype=np.float64).reshape(4, 2))
+        for tag_id, corners in result.get("detections", [])
+        if int(tag_id) in face_ids and int(tag_id) in context.tag_corner_map_mm
+    ]
+    if len(detections) < 2:
+        return None
+
+    object_points = np.vstack(
+        [context.tag_corner_map_mm[tag_id] for tag_id, _corners in detections]
+    ).astype(np.float64)
+    image_points = np.vstack([corners for _tag_id, corners in detections]).astype(np.float64)
+    K, dist = scale_intrinsics(intr, frame_size)
+
+    solve_image_points = image_points
+    solve_K = K
+    solve_dist = dist
+    if intr.camera_model == "fisheye":
+        solve_image_points = cv2.fisheye.undistortPoints(
+            image_points.reshape(-1, 1, 2),
+            K,
+            dist.reshape(-1, 1),
+            P=K,
+        ).reshape(-1, 2)
+        solve_dist = np.zeros(5, dtype=np.float64)
+
+    face_normals = {
+        "+X": np.array([1.0, 0.0, 0.0]),
+        "-X": np.array([-1.0, 0.0, 0.0]),
+        "+Y": np.array([0.0, 1.0, 0.0]),
+        "-Y": np.array([0.0, -1.0, 0.0]),
+        "+Z": np.array([0.0, 0.0, 1.0]),
+        "-Z": np.array([0.0, 0.0, -1.0]),
+    }
+    face_normal = face_normals.get(face_name)
+    candidates: list[tuple[float, np.ndarray, np.ndarray]] = []
+
+    def add_candidate(rvec: np.ndarray, tvec: np.ndarray) -> None:
+        rvec = np.asarray(rvec, dtype=np.float64).reshape(3, 1)
+        tvec = np.asarray(tvec, dtype=np.float64).reshape(3, 1)
+        R, _ = cv2.Rodrigues(rvec)
+        points_cam = object_points @ R.T + tvec.reshape(1, 3)
+        if np.any(points_cam[:, 2] <= 1e-4):
+            return
+        if face_normal is not None and float((R @ face_normal)[2]) > 0.0:
+            return
+        err = reproj_error_for_intrinsics(
+            object_points,
+            image_points,
+            rvec,
+            tvec,
+            K,
+            dist,
+            intr.camera_model,
+        )
+        if np.isfinite(err):
+            candidates.append((err, rvec, tvec))
+
+    try:
+        generic = cv2.solvePnPGeneric(
+            object_points,
+            solve_image_points,
+            solve_K,
+            solve_dist,
+            flags=cv2.SOLVEPNP_IPPE,
+        )
+        if len(generic) >= 3 and generic[0]:
+            for rvec, tvec in zip(generic[1], generic[2]):
+                add_candidate(rvec, tvec)
+    except cv2.error:
+        pass
+
+    for flag in (cv2.SOLVEPNP_ITERATIVE, cv2.SOLVEPNP_SQPNP):
+        try:
+            ok, rvec, tvec = cv2.solvePnP(
+                object_points,
+                solve_image_points,
+                solve_K,
+                solve_dist,
+                flags=flag,
+            )
+        except cv2.error:
+            continue
+        if not ok:
+            continue
+        try:
+            rvec, tvec = cv2.solvePnPRefineLM(
+                object_points,
+                solve_image_points,
+                solve_K,
+                solve_dist,
+                rvec,
+                tvec,
+            )
+        except cv2.error:
+            pass
+        add_candidate(rvec, tvec)
+
+    if not candidates:
+        return None
+    err, rvec, tvec = min(candidates, key=lambda candidate: candidate[0])
+    if err > MAX_APRILCUBE_MULTI_TAG_FACE_REPROJ_PX:
+        return None
+    return rvec, tvec, err, face_name, [tag_id for tag_id, _corners in detections]
+
+
+def detect_aprilcube_pose(
+    frame_bgr: np.ndarray,
+    context: AprilCubeDetectionContext,
+    intr: Intrinsics,
+) -> PoseDetection:
+    detector = context.detector
     result = detector.process_frame(frame_bgr)
+    pose_mode = "single-tag-face" if not context.multi_tag_faces else "native"
+    if context.multi_tag_faces:
+        h, w = frame_bgr.shape[:2]
+        multi_tag_pose = solve_aprilcube_multi_tag_face_pose(result, context, intr, (w, h))
+        if multi_tag_pose is not None:
+            rvec, tvec, err, face_name, used_tag_ids = multi_tag_pose
+            result["success"] = True
+            result["failure_reason"] = ""
+            result["rvec"] = rvec
+            result["tvec"] = tvec
+            result["T"] = rvec_tvec_to_T(rvec, tvec)
+            result["reproj_error"] = err
+            result["n_inliers"] = len(used_tag_ids) * 4
+            result["multi_tag_face_pose"] = True
+            result["multi_tag_face"] = face_name
+            result["multi_tag_face_ids"] = used_tag_ids
+            pose_mode = f"multi-tag-face:{face_name}"
+
     vis = detector.draw_result(frame_bgr, result)
     if not result.get("success", False) or result.get("T") is None:
         n_tags = int(result.get("n_tags", 0))
-        return PoseDetection(ok=False, T=None, n_points=n_tags, message=f"E: Q not found tags={n_tags}", vis=vis)
+        faces = ",".join(sorted(str(face) for face in result.get("visible_faces", set()))) or "none"
+        reason = str(result.get("failure_reason", "unknown"))
+        return PoseDetection(
+            ok=False,
+            T=None,
+            n_points=n_tags,
+            message=f"E: Q not found tags={n_tags} faces={faces} reason={reason}",
+            vis=vis,
+        )
 
     T = np.asarray(result["T"], dtype=np.float64).reshape(4, 4)
     T[:3, 3] *= 0.001  # AprilCube model uses millimeters; project uses meters elsewhere.
@@ -775,7 +959,10 @@ def detect_aprilcube_pose(frame_bgr: np.ndarray, detector: Any) -> PoseDetection
         T=T,
         n_points=int(result.get("n_tags", 0)),
         reproj_error=float(result.get("reproj_error", float("inf"))),
-        message=f"E: Q ok tags={int(result.get('n_tags', 0))} err={float(result.get('reproj_error', 0.0)):.2f}px",
+        message=(
+            f"E: Q ok tags={int(result.get('n_tags', 0))} "
+            f"err={float(result.get('reproj_error', 0.0)):.2f}px mode={pose_mode}"
+        ),
         vis=vis,
     )
 
@@ -1641,9 +1828,16 @@ def main() -> None:
     print(f"[INFO] auto stop after {MAX_USABLE_SAMPLE_GROUPS} valid sample groups: {AUTO_STOP_AFTER_USABLE_SAMPLE_GROUPS}")
     print("[INFO] Press s to manually store a valid synchronized sample; c clears; q solves+saves+quits.")
 
-    create_display_window(THIRD_VIEW_WINDOW_NAME, third_intr.image_size, DISPLAY_SCALE_THIRD, (0, 0))
-    create_display_window(ROOT_CAMERA_NAME, root_intr.image_size, DISPLAY_SCALE_FINGERTIP, (980, 0))
-    create_display_window(TIP_CAMERA_NAME, tip_intr.image_size, DISPLAY_SCALE_FINGERTIP, (0, 580))
+    root_detection_size = root_intr.image_size
+    tip_detection_size = tip_intr.image_size
+    if CALIB_CAMERA_INPUT_MODE == "cv2_pair":
+        actual_sizes = wrist_devices.get("actual_sizes", {})
+        root_detection_size = tuple(actual_sizes.get(ROOT_CAMERA_NAME, root_intr.image_size))
+        tip_detection_size = tuple(actual_sizes.get(TIP_CAMERA_NAME, tip_intr.image_size))
+
+    create_display_window(THIRD_VIEW_WINDOW_NAME, third_actual_size, DISPLAY_SCALE_THIRD, (0, 0))
+    create_display_window(ROOT_CAMERA_NAME, root_detection_size, DISPLAY_SCALE_FINGERTIP, (980, 0))
+    create_display_window(TIP_CAMERA_NAME, tip_detection_size, DISPLAY_SCALE_FINGERTIP, (0, 580))
 
     try:
         stop_requested = False
@@ -1671,7 +1865,7 @@ def main() -> None:
             tip_dt = time.perf_counter()
             E_B_det = detect_apriltag_grid_pose(E_frame, grid_detector, board, third_intr, "E/B")
             E_B_dt = time.perf_counter()
-            E_Q_det = detect_aprilcube_pose(E_frame, aprilcube_detector)
+            E_Q_det = detect_aprilcube_pose(E_frame, aprilcube_detector, third_intr)
             E_Q_dt = time.perf_counter()
             timing_now = time.time()
             if PROFILE_DETECTION_TIMING and timing_now - last_status_log_time >= STATUS_LOG_INTERVAL_S:

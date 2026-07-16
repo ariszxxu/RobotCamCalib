@@ -10,7 +10,7 @@ import yaml
 
 
 DEFAULT_EXTRINSICS_YAML = Path(
-    "outputs/extrinsics_i_0704_232854.yaml"
+    "/home/ps/RobotCamCalib1/outputs/extrinsics_wrist_Q_thumb_web_cam_middle_finger_cam_apriltag_grid_offline_2samples_0712_030212_0712_031300.yaml"
 )
 
 DEFAULT_HOST = "0.0.0.0"
