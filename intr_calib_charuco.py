@@ -47,28 +47,28 @@ CHARUCO_MIN_GRID_COLS_PER_SAMPLE = 4
 CHARUCO_MIN_BOARD_BBOX_FRACTION = 0.35
 
 # Previous CV2 camera defaults. Kept here for reference.
-# DEFAULT_CV2_CAMERA_NAME: Optional[str] = None
-# DEFAULT_CV2_SOURCE: str = "0"
-# DEFAULT_CV2_PORT: Optional[str] = "3-8:1.0"
-# DEFAULT_CV2_WIDTH: Optional[int] = 2592
-# DEFAULT_CV2_HEIGHT: Optional[int] = 1944
-# DEFAULT_CV2_FPS: Optional[int] = 50
-# DEFAULT_CV2_FOURCC: Optional[str] = "MJPG"
-# DEFAULT_OUTPUT_NAME: Optional[str] = None
-# DEFAULT_DISPLAY_SCALE: Optional[float] = 0.4
-# DEFAULT_WINDOW_NAME: str = "thumb_web_cam ChArUco intrinsics"
+DEFAULT_CV2_CAMERA_NAME: Optional[str] = None
+DEFAULT_CV2_SOURCE: str = "0"
+DEFAULT_CV2_PORT: Optional[str] = "3-6:1.0"
+DEFAULT_CV2_WIDTH: Optional[int] = 2592
+DEFAULT_CV2_HEIGHT: Optional[int] = 1944
+DEFAULT_CV2_FPS: Optional[int] = 50
+DEFAULT_CV2_FOURCC: Optional[str] = "MJPG"
+DEFAULT_OUTPUT_NAME: Optional[str] = None
+DEFAULT_DISPLAY_SCALE: Optional[float] = 0.4
+DEFAULT_WINDOW_NAME: str = "thumb_web_cam ChArUco intrinsics"
 
 # Intel RealSense D435 RGB defaults: 1920x1080 @ 30 FPS, YUYV via V4L2.
-DEFAULT_CV2_CAMERA_NAME: Optional[str] = None
-DEFAULT_CV2_SOURCE: str = "/dev/video4"
-DEFAULT_CV2_PORT: Optional[str] = None
-DEFAULT_CV2_WIDTH: Optional[int] = 1920
-DEFAULT_CV2_HEIGHT: Optional[int] = 1080
-DEFAULT_CV2_FPS: Optional[int] = 30
-DEFAULT_CV2_FOURCC: Optional[str] = "YUYV"
-DEFAULT_OUTPUT_NAME: Optional[str] = "d435_color"
-DEFAULT_DISPLAY_SCALE: Optional[float] = 0.4
-DEFAULT_WINDOW_NAME: str = "D435 RGB ChArUco intrinsics"
+# DEFAULT_CV2_CAMERA_NAME: Optional[str] = None
+# DEFAULT_CV2_SOURCE: str = "/dev/video4"
+# DEFAULT_CV2_PORT: Optional[str] = None
+# DEFAULT_CV2_WIDTH: Optional[int] = 1920
+# DEFAULT_CV2_HEIGHT: Optional[int] = 1080
+# DEFAULT_CV2_FPS: Optional[int] = 30
+# DEFAULT_CV2_FOURCC: Optional[str] = "YUYV"
+# DEFAULT_OUTPUT_NAME: Optional[str] = "d435_color"
+# DEFAULT_DISPLAY_SCALE: Optional[float] = 0.4
+# DEFAULT_WINDOW_NAME: str = "D435 RGB ChArUco intrinsics"
 CAMERA_MODEL: str = "pinhole"  # supported: "pinhole", "fisheye"
 
 AUTO_SAVE_VALID_IMAGES: bool = True
