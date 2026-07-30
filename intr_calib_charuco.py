@@ -1,4 +1,6 @@
 import argparse
+import csv
+import math
 import os
 import re
 import time
@@ -49,14 +51,14 @@ CHARUCO_MIN_BOARD_BBOX_FRACTION = 0.35
 # Previous CV2 camera defaults. Kept here for reference.
 DEFAULT_CV2_CAMERA_NAME: Optional[str] = None
 DEFAULT_CV2_SOURCE: str = "0"
-DEFAULT_CV2_PORT: Optional[str] = "3-6:1.0"
+DEFAULT_CV2_PORT: Optional[str] = "5-3:1.0"
 DEFAULT_CV2_WIDTH: Optional[int] = 2592
 DEFAULT_CV2_HEIGHT: Optional[int] = 1944
 DEFAULT_CV2_FPS: Optional[int] = 50
 DEFAULT_CV2_FOURCC: Optional[str] = "MJPG"
 DEFAULT_OUTPUT_NAME: Optional[str] = None
 DEFAULT_DISPLAY_SCALE: Optional[float] = 0.4
-DEFAULT_WINDOW_NAME: str = "thumb_web_cam ChArUco intrinsics"
+DEFAULT_WINDOW_NAME: str = "ChArUco intrinsics"
 
 # Intel RealSense D435 RGB defaults: 1920x1080 @ 30 FPS, YUYV via V4L2.
 # DEFAULT_CV2_CAMERA_NAME: Optional[str] = None
@@ -69,6 +71,7 @@ DEFAULT_WINDOW_NAME: str = "thumb_web_cam ChArUco intrinsics"
 # DEFAULT_OUTPUT_NAME: Optional[str] = "d435_color"
 # DEFAULT_DISPLAY_SCALE: Optional[float] = 0.4
 # DEFAULT_WINDOW_NAME: str = "D435 RGB ChArUco intrinsics"
+
 CAMERA_MODEL: str = "pinhole"  # supported: "pinhole", "fisheye"
 
 AUTO_SAVE_VALID_IMAGES: bool = True
@@ -85,6 +88,20 @@ SAMPLE_IMAGE_ROOT: Path = (
 
 OPEN_TEST_NUM_FRAMES: int = 10
 OPEN_TEST_SLEEP_S: float = 0.03
+
+# Final calibration pipeline. Saved images are re-evaluated after capture so
+# motion-blurred frames and redundant poses do not bias the intrinsics.
+FINAL_FILTER_MOTION_BLUR: bool = True
+FINAL_USE_GPU_FOR_SHARPNESS: bool = True
+FINAL_BLUR_REJECT_FRACTION: float = 0.15
+FINAL_MAX_CALIBRATION_VIEWS: int = 72
+FINAL_REJECT_REPROJ_OUTLIERS: bool = True
+FINAL_MAX_VIEW_ERROR_PX: float = 0.8
+FINAL_MAX_REJECTION_ROUNDS: int = 5
+FINAL_PROGRESS_BAR_WIDTH: int = 36
+FINAL_PIPELINE_STAGE_COUNT: int = 6
+FINAL_CROSS_VALIDATE: bool = True
+FINAL_CONTACT_SHEET_MAX_IMAGES: int = 24
 
 
 @dataclass
@@ -617,6 +634,824 @@ def charuco_detection_quality(charuco_ids, min_corners: int) -> tuple[bool, str]
     )
 
 
+def final_progress(
+    stage: int,
+    label: str,
+    current: int,
+    total: int,
+    detail: str = "",
+) -> None:
+    """Render one terminal progress bar for the final calibration pipeline."""
+    safe_total = max(int(total), 1)
+    safe_current = min(max(int(current), 0), safe_total)
+    fraction = safe_current / safe_total
+    filled = int(round(FINAL_PROGRESS_BAR_WIDTH * fraction))
+    bar = "#" * filled + "-" * (FINAL_PROGRESS_BAR_WIDTH - filled)
+    suffix = f"  {detail}" if detail else ""
+    line = (
+        f"\r[FINAL {stage}/{FINAL_PIPELINE_STAGE_COUNT}] {label:<23} "
+        f"|{bar}| {safe_current:>4}/{safe_total:<4}{suffix}"
+    )
+    print(line, end="\n" if safe_current >= safe_total else "", flush=True)
+
+
+def robust_location_scale(values: np.ndarray) -> tuple[float, float]:
+    finite = np.asarray(values, dtype=np.float64)
+    finite = finite[np.isfinite(finite)]
+    if finite.size == 0:
+        return 0.0, 1.0
+    median = float(np.median(finite))
+    mad = float(np.median(np.abs(finite - median)))
+    scale = max(1.4826 * mad, float(np.std(finite)) * 0.1, 1e-6)
+    return median, scale
+
+
+def configure_final_sharpness_backend() -> dict:
+    """Select OpenCL/UMat GPU filtering when available, otherwise use CPU."""
+    backend = {
+        "requested_gpu": bool(FINAL_USE_GPU_FOR_SHARPNESS),
+        "gradient_backend": "cpu",
+        "opencl_device": {},
+        "calibration_backend": "cpu_opencv",
+    }
+    if not FINAL_USE_GPU_FOR_SHARPNESS:
+        cv2.ocl.setUseOpenCL(False)
+        return backend
+
+    try:
+        if not cv2.ocl.haveOpenCL():
+            print("[WARN] OpenCL is unavailable; sharpness analysis will use CPU.")
+            return backend
+        device = cv2.ocl.Device_getDefault()
+        if not device.available():
+            print("[WARN] No available OpenCL device; sharpness analysis will use CPU.")
+            return backend
+        cv2.ocl.setUseOpenCL(True)
+        # Trigger OpenCL context creation before the progress loop.
+        warmup = cv2.UMat(np.zeros((32, 32), dtype=np.uint8))
+        cv2.Sobel(warmup, cv2.CV_32F, 1, 0, ksize=3).get()
+        backend["gradient_backend"] = "opencl_umat"
+        backend["opencl_device"] = {
+            "name": str(device.name()),
+            "vendor": str(device.vendorName()),
+            "version": str(device.version()),
+        }
+    except Exception as exc:
+        cv2.ocl.setUseOpenCL(False)
+        print(
+            f"[WARN] GPU sharpness initialization failed ({exc}); falling back to CPU."
+        )
+    return backend
+
+
+def compute_sharpness_metrics(
+    gray: np.ndarray,
+    mask: Optional[np.ndarray],
+    use_gpu: bool,
+) -> tuple[float, float]:
+    """Return Laplacian variance and mean squared Sobel gradient."""
+    if use_gpu:
+        gray_umat = cv2.UMat(gray)
+        laplacian = cv2.Laplacian(gray_umat, cv2.CV_32F)
+        grad_x = cv2.Sobel(gray_umat, cv2.CV_32F, 1, 0, ksize=3)
+        grad_y = cv2.Sobel(gray_umat, cv2.CV_32F, 0, 1, ksize=3)
+        gradient_sq = cv2.add(
+            cv2.multiply(grad_x, grad_x),
+            cv2.multiply(grad_y, grad_y),
+        )
+        # OpenCV 4.5.x can fail on masked UMat statistical reductions. Keep
+        # the expensive filters on the GPU and reduce their outputs on CPU.
+        laplacian_array = laplacian.get()
+        gradient_sq_array = gradient_sq.get()
+    else:
+        laplacian_array = cv2.Laplacian(gray, cv2.CV_32F)
+        grad_x = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
+        grad_y = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
+        gradient_sq_array = grad_x * grad_x + grad_y * grad_y
+
+    if mask is None:
+        return (
+            float(np.var(laplacian_array)),
+            float(np.mean(gradient_sq_array)),
+        )
+    valid = np.asarray(mask) > 0
+    if int(np.count_nonzero(valid)) < 100:
+        return math.nan, math.nan
+    return (
+        float(np.var(laplacian_array[valid])),
+        float(np.mean(gradient_sq_array[valid])),
+    )
+
+
+def estimate_charuco_pixels_per_square(
+    charuco_corners: np.ndarray,
+    charuco_ids: np.ndarray,
+    squares_x: int,
+) -> float:
+    points = np.asarray(charuco_corners, dtype=np.float64).reshape(-1, 2)
+    ids = np.asarray(charuco_ids, dtype=np.int32).reshape(-1)
+    by_id = {int(marker_id): point for marker_id, point in zip(ids, points)}
+    inner_cols = int(squares_x) - 1
+    distances: list[float] = []
+    for marker_id, point in by_id.items():
+        right_id = marker_id + 1
+        if marker_id // inner_cols == right_id // inner_cols and right_id in by_id:
+            distances.append(float(np.linalg.norm(by_id[right_id] - point)))
+        down_id = marker_id + inner_cols
+        if down_id in by_id:
+            distances.append(float(np.linalg.norm(by_id[down_id] - point)))
+    if distances:
+        return float(np.median(distances))
+    hull_area = float(cv2.contourArea(cv2.convexHull(points.astype(np.float32))))
+    return float(math.sqrt(max(hull_area, 1.0) / max(len(points), 1)))
+
+
+def measure_charuco_sample_sharpness(
+    sample: dict,
+    squares_x: int,
+    squares_y: int,
+    use_gpu: bool,
+) -> tuple[float, float, float]:
+    image_path = Path(str(sample.get("image_path", ""))).expanduser()
+    gray = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
+    if gray is None:
+        raise RuntimeError(f"Could not read saved sample image: {image_path}")
+
+    corners = np.asarray(sample["charuco_corners"], dtype=np.float32).reshape(-1, 2)
+    ids = np.asarray(sample["charuco_ids"], dtype=np.int32).reshape(-1)
+    canonical_pixels_per_square = 100.0
+    canonical_points = np.column_stack(
+        (
+            (ids % (int(squares_x) - 1) + 1) * canonical_pixels_per_square,
+            (ids // (int(squares_x) - 1) + 1) * canonical_pixels_per_square,
+        )
+    ).astype(np.float32)
+    homography, _mask = cv2.findHomography(corners, canonical_points, method=0)
+    if homography is None:
+        raise RuntimeError("Could not estimate board homography for sharpness.")
+    rectified = cv2.warpPerspective(
+        gray,
+        homography,
+        (
+            int(round(int(squares_x) * canonical_pixels_per_square)),
+            int(round(int(squares_y) * canonical_pixels_per_square)),
+        ),
+        flags=cv2.INTER_LINEAR,
+    )
+    rectified_mask = np.zeros_like(rectified, dtype=np.uint8)
+    cv2.fillConvexPoly(
+        rectified_mask,
+        cv2.convexHull(np.round(canonical_points).astype(np.int32)),
+        255,
+    )
+    rectified_mask = cv2.erode(
+        rectified_mask,
+        np.ones((7, 7), dtype=np.uint8),
+    )
+    laplacian_var, tenengrad_mean = compute_sharpness_metrics(
+        rectified,
+        rectified_mask,
+        use_gpu,
+    )
+    pixels_per_square = estimate_charuco_pixels_per_square(
+        corners,
+        ids,
+        squares_x,
+    )
+    return laplacian_var, tenengrad_mean, pixels_per_square
+
+
+def filter_motion_blur_samples(
+    samples: list[dict],
+    squares_x: int,
+    squares_y: int,
+    min_corners: int,
+    backend: dict,
+) -> tuple[list[dict], dict]:
+    """Reject the lowest board-region sharpness tail at comparable scales."""
+    valid_samples: list[dict] = []
+    for sample in samples:
+        quality_ok, reason = charuco_detection_quality(
+            sample.get("charuco_ids"),
+            min_corners,
+        )
+        sample["final_quality_reason"] = reason
+        if quality_ok:
+            valid_samples.append(sample)
+        else:
+            sample["final_filter_status"] = "rejected_detection"
+
+    use_gpu = backend.get("gradient_backend") == "opencl_umat"
+    scored_samples: list[dict] = []
+    total = len(valid_samples)
+    if total == 0:
+        final_progress(2, "Sharpness analysis", 1, 1, "no valid samples")
+        return [], {
+            "valid_before_blur_filter": 0,
+            "rejected_blur_count": 0,
+        }
+
+    for position, sample in enumerate(valid_samples, start=1):
+        try:
+            laplacian_var, tenengrad_mean, pixels_per_square = (
+                measure_charuco_sample_sharpness(
+                    sample,
+                    squares_x,
+                    squares_y,
+                    use_gpu,
+                )
+            )
+            sample["rectified_laplacian_var"] = float(laplacian_var)
+            sample["rectified_tenengrad_mean"] = float(tenengrad_mean)
+            sample["pixels_per_square"] = float(pixels_per_square)
+            if np.isfinite(laplacian_var) and np.isfinite(tenengrad_mean):
+                scored_samples.append(sample)
+        except Exception as exc:
+            sample["sharpness_error"] = str(exc)
+            print(f"\n[WARN] Sharpness check skipped for {sample.get('image_path')}: {exc}")
+        final_progress(
+            2,
+            "Sharpness analysis",
+            position,
+            total,
+            f"GPU={use_gpu}",
+        )
+
+    if not FINAL_FILTER_MOTION_BLUR or len(scored_samples) < 4:
+        for sample in valid_samples:
+            sample["final_filter_status"] = "sharpness_kept"
+        return valid_samples, {
+            "valid_before_blur_filter": len(valid_samples),
+            "scored_for_blur": len(scored_samples),
+            "rejected_blur_count": 0,
+        }
+
+    pixels_per_square = np.asarray(
+        [sample["pixels_per_square"] for sample in scored_samples],
+        dtype=np.float64,
+    )
+    if len(scored_samples) >= 48:
+        bin_count = 4
+    elif len(scored_samples) >= 24:
+        bin_count = 3
+    elif len(scored_samples) >= 12:
+        bin_count = 2
+    else:
+        bin_count = 1
+    edges = np.unique(
+        np.quantile(pixels_per_square, np.linspace(0.0, 1.0, bin_count + 1))
+    )
+    if edges.size < 2:
+        edges = np.asarray(
+            [float(np.min(pixels_per_square)) - 1.0, float(np.max(pixels_per_square)) + 1.0]
+        )
+    scores = np.zeros(len(scored_samples), dtype=np.float64)
+    assigned = np.zeros(len(scored_samples), dtype=bool)
+    for bin_index in range(len(edges) - 1):
+        if bin_index == len(edges) - 2:
+            mask = (
+                (pixels_per_square >= edges[bin_index])
+                & (pixels_per_square <= edges[bin_index + 1])
+            )
+        else:
+            mask = (
+                (pixels_per_square >= edges[bin_index])
+                & (pixels_per_square < edges[bin_index + 1])
+            )
+        indices = np.flatnonzero(mask)
+        if indices.size == 0:
+            continue
+        log_laplacian = np.log1p(
+            np.asarray(
+                [
+                    scored_samples[index]["rectified_laplacian_var"]
+                    for index in indices
+                ]
+            )
+        )
+        log_tenengrad = np.log1p(
+            np.asarray(
+                [
+                    scored_samples[index]["rectified_tenengrad_mean"]
+                    for index in indices
+                ]
+            )
+        )
+        lap_median, lap_scale = robust_location_scale(log_laplacian)
+        ten_median, ten_scale = robust_location_scale(log_tenengrad)
+        scores[indices] = 0.5 * (
+            (log_laplacian - lap_median) / lap_scale
+            + (log_tenengrad - ten_median) / ten_scale
+        )
+        assigned[indices] = True
+    scores[~assigned] = 0.0
+
+    order = np.argsort(scores)
+    percentiles = np.empty_like(scores)
+    if len(scores) == 1:
+        percentiles[:] = 1.0
+    else:
+        percentiles[order] = np.arange(len(scores)) / float(len(scores) - 1)
+    for index, sample in enumerate(scored_samples):
+        sample["sharpness_score"] = float(scores[index])
+        sample["sharpness_percentile"] = float(percentiles[index])
+
+    requested_reject_count = int(
+        round(len(scored_samples) * float(FINAL_BLUR_REJECT_FRACTION))
+    )
+    max_reject_count = max(0, len(valid_samples) - MIN_SAMPLES)
+    reject_count = min(requested_reject_count, max_reject_count)
+    rejected_ids = {id(scored_samples[index]) for index in order[:reject_count]}
+    kept_samples: list[dict] = []
+    rejected_count = 0
+    for sample in valid_samples:
+        if id(sample) in rejected_ids:
+            sample["final_filter_status"] = "rejected_blur"
+            rejected_count += 1
+        else:
+            sample["final_filter_status"] = "sharpness_kept"
+            kept_samples.append(sample)
+    return kept_samples, {
+        "valid_before_blur_filter": len(valid_samples),
+        "scored_for_blur": len(scored_samples),
+        "blur_reject_fraction": float(FINAL_BLUR_REJECT_FRACTION),
+        "requested_blur_reject_count": requested_reject_count,
+        "rejected_blur_count": rejected_count,
+    }
+
+
+def charuco_pose_features(
+    sample: dict,
+    image_size: tuple[int, int],
+    board,
+) -> np.ndarray:
+    object_points, image_points = charuco_to_calibration_points(
+        board,
+        sample["charuco_corners"],
+        sample["charuco_ids"],
+    )
+    if object_points is None or image_points is None:
+        raise RuntimeError("Missing ChArUco calibration points.")
+    object_xy = np.asarray(object_points, dtype=np.float32).reshape(-1, 3)[:, :2]
+    image_xy = np.asarray(image_points, dtype=np.float32).reshape(-1, 2)
+    width, height = image_size
+    center = np.mean(image_xy, axis=0)
+    hull_area = float(cv2.contourArea(cv2.convexHull(image_xy)))
+    area_fraction = hull_area / max(float(width * height), 1.0)
+
+    homography, _mask = cv2.findHomography(object_xy, image_xy, method=0)
+    if homography is None:
+        direction = image_xy[-1] - image_xy[0]
+        horizontal_tilt = 0.0
+        vertical_tilt = 0.0
+    else:
+        minimum = np.min(object_xy, axis=0)
+        maximum = np.max(object_xy, axis=0)
+        object_quad = np.asarray(
+            [
+                [minimum[0], minimum[1]],
+                [maximum[0], minimum[1]],
+                [maximum[0], maximum[1]],
+                [minimum[0], maximum[1]],
+            ],
+            dtype=np.float32,
+        ).reshape(-1, 1, 2)
+        quad = cv2.perspectiveTransform(object_quad, homography).reshape(-1, 2)
+        edges = np.asarray(
+            [
+                np.linalg.norm(quad[1] - quad[0]),
+                np.linalg.norm(quad[2] - quad[1]),
+                np.linalg.norm(quad[3] - quad[2]),
+                np.linalg.norm(quad[0] - quad[3]),
+            ],
+            dtype=np.float64,
+        )
+        direction = quad[1] - quad[0]
+        horizontal_tilt = math.log(max(edges[0], 1e-6) / max(edges[2], 1e-6))
+        vertical_tilt = math.log(max(edges[1], 1e-6) / max(edges[3], 1e-6))
+    angle = math.atan2(float(direction[1]), float(direction[0]))
+    return np.asarray(
+        [
+            3.0 * center[0] / width,
+            3.0 * center[1] / height,
+            1.3 * math.log(max(area_fraction, 1e-8)),
+            0.5 * math.cos(angle),
+            0.5 * math.sin(angle),
+            0.8 * horizontal_tilt,
+            0.8 * vertical_tilt,
+        ],
+        dtype=np.float64,
+    )
+
+
+def select_pose_diverse_charuco_samples(
+    samples: list[dict],
+    image_size: tuple[int, int],
+    board,
+) -> tuple[list[dict], int]:
+    target_count = min(len(samples), int(FINAL_MAX_CALIBRATION_VIEWS))
+    if len(samples) <= target_count:
+        final_progress(
+            3,
+            "Pose diversity",
+            target_count,
+            target_count,
+            "all sharp views kept",
+        )
+        return list(samples), []
+
+    features = np.vstack(
+        [charuco_pose_features(sample, image_size, board) for sample in samples]
+    )
+    medians = np.median(features, axis=0)
+    mad = np.median(np.abs(features - medians), axis=0)
+    scale = np.maximum(1.4826 * mad, np.std(features, axis=0) * 0.25)
+    scale = np.maximum(scale, 1e-6)
+    features = (features - medians) / scale
+    sharpness = np.asarray(
+        [float(sample.get("sharpness_score", 0.0)) for sample in samples],
+        dtype=np.float64,
+    )
+    sharp_median, sharp_scale = robust_location_scale(sharpness)
+    sharp_z = np.clip((sharpness - sharp_median) / sharp_scale, -3.0, 3.0)
+
+    selected_indices = [int(np.argmax(sharp_z))]
+    minimum_distance = np.linalg.norm(features - features[selected_indices[0]], axis=1)
+    minimum_distance[selected_indices[0]] = -np.inf
+    final_progress(3, "Pose diversity", 1, target_count, "farthest-pose selection")
+    while len(selected_indices) < target_count:
+        score = minimum_distance + 0.12 * sharp_z
+        next_index = int(np.argmax(score))
+        selected_indices.append(next_index)
+        distance = np.linalg.norm(features - features[next_index], axis=1)
+        minimum_distance = np.minimum(minimum_distance, distance)
+        minimum_distance[selected_indices] = -np.inf
+        final_progress(
+            3,
+            "Pose diversity",
+            len(selected_indices),
+            target_count,
+            "farthest-pose selection",
+        )
+
+    selected_set = set(selected_indices)
+    selected = [sample for index, sample in enumerate(samples) if index in selected_set]
+    rejected_count = 0
+    for index, sample in enumerate(samples):
+        if index in selected_set:
+            sample["final_filter_status"] = "pose_selected"
+            continue
+        sample["final_filter_status"] = "rejected_pose_redundancy"
+        rejected_count += 1
+    return selected, rejected_count
+
+
+def robust_calibrate_final_samples(
+    samples: list[dict],
+    image_size: tuple[int, int],
+    board,
+    camera_model: str,
+    min_corners: int,
+) -> tuple[dict, dict]:
+    active = list(samples)
+    rejected_indices: list[int] = []
+    rounds: list[dict] = []
+    max_rounds = (
+        int(FINAL_MAX_REJECTION_ROUNDS)
+        if FINAL_REJECT_REPROJ_OUTLIERS and camera_model == "pinhole"
+        else 0
+    )
+    results: dict = {}
+    for round_index in range(max_rounds + 1):
+        final_progress(
+            4,
+            "Robust calibration",
+            round_index,
+            max_rounds + 1,
+            f"round={round_index + 1} views={len(active)} optimizing",
+        )
+        results = calibrate_target_samples(
+            active,
+            image_size,
+            board,
+            camera_model,
+            min_corners,
+        )
+        errors = np.asarray(results["per_view_errors"], dtype=np.float64)
+        median, robust_scale = robust_location_scale(errors)
+        threshold = min(
+            float(FINAL_MAX_VIEW_ERROR_PX),
+            median + 3.0 * robust_scale,
+        )
+        threshold = max(threshold, median + 0.12)
+        bad = np.flatnonzero(errors > threshold)
+        max_remove = max(1, int(math.ceil(0.10 * len(active))))
+        if bad.size > max_remove:
+            bad = bad[np.argsort(errors[bad])[::-1][:max_remove]]
+        if len(active) - int(bad.size) < MIN_SAMPLES:
+            allowable = max(0, len(active) - MIN_SAMPLES)
+            bad = bad[np.argsort(errors[bad])[::-1][:allowable]]
+
+        rounds.append(
+            {
+                "round": round_index + 1,
+                "num_views": len(active),
+                "rms": float(results["rms"]),
+                "median_view_error": median,
+                "threshold": float(threshold),
+                "num_rejected": int(bad.size),
+            }
+        )
+        print(
+            f"\n[INFO] Final calibration round {round_index + 1}: "
+            f"views={len(active)}, rms={results['rms']:.6f}px, "
+            f"median={median:.6f}px, threshold={threshold:.6f}px, "
+            f"reject={bad.size}"
+        )
+        if bad.size == 0 or round_index == max_rounds:
+            break
+
+        bad_set = set(int(index) for index in bad)
+        for index in sorted(bad_set):
+            sample = active[index]
+            sample["final_filter_status"] = "rejected_reprojection"
+            sample["final_reproj_error"] = float(errors[index])
+            rejected_indices.append(int(sample.get("index", -1)))
+        active = [
+            sample for index, sample in enumerate(active) if index not in bad_set
+        ]
+
+    for sample, metadata, error in zip(
+        active,
+        results.get("sample_metadata", []),
+        results["per_view_errors"],
+    ):
+        sample["final_filter_status"] = "selected"
+        sample["final_reproj_error"] = float(error)
+        metadata["final_filter_status"] = "selected"
+        metadata["final_reproj_error"] = float(error)
+        for key in (
+            "rectified_laplacian_var",
+            "rectified_tenengrad_mean",
+            "pixels_per_square",
+            "sharpness_score",
+            "sharpness_percentile",
+        ):
+            value = sample.get(key)
+            if value is not None and np.isfinite(float(value)):
+                metadata[key] = float(value)
+    results["rejected_indices"] = [
+        *[int(value) for value in results.get("rejected_indices", [])],
+        *rejected_indices,
+    ]
+    final_progress(
+        4,
+        "Robust calibration",
+        1,
+        1,
+        f"done views={len(active)} rms={results['rms']:.6f}px",
+    )
+    return results, {
+        "calibration_rounds": rounds,
+        "rejected_reprojection_count": len(rejected_indices),
+        "final_selected_count": len(active),
+    }
+
+
+def independent_sample_pnp_error(
+    sample: dict,
+    board,
+    K: np.ndarray,
+    dist: np.ndarray,
+) -> float:
+    object_points, image_points = charuco_to_calibration_points(
+        board,
+        sample.get("charuco_corners"),
+        sample.get("charuco_ids"),
+    )
+    if object_points is None or image_points is None or len(object_points) < 4:
+        return math.nan
+    object_points = np.asarray(object_points, dtype=np.float32).reshape(-1, 3)
+    image_points = np.asarray(image_points, dtype=np.float32).reshape(-1, 1, 2)
+    ok, rvec, tvec = cv2.solvePnP(
+        object_points,
+        image_points,
+        np.asarray(K, dtype=np.float64).reshape(3, 3),
+        np.asarray(dist, dtype=np.float64).reshape(-1, 1),
+        flags=cv2.SOLVEPNP_ITERATIVE,
+    )
+    if not ok:
+        return math.nan
+    projected, _jacobian = cv2.projectPoints(
+        object_points,
+        rvec,
+        tvec,
+        K,
+        dist,
+    )
+    delta = image_points.reshape(-1, 2) - projected.reshape(-1, 2)
+    return float(np.sqrt(np.mean(np.sum(delta * delta, axis=1))))
+
+
+def cross_validate_final_samples(
+    selected_samples: list[dict],
+    image_size: tuple[int, int],
+    board,
+    camera_model: str,
+    min_corners: int,
+) -> dict:
+    if not FINAL_CROSS_VALIDATE:
+        final_progress(5, "Cross-validation", 1, 1, "disabled")
+        return {"enabled": False, "folds": [], "reason": "disabled"}
+    if camera_model != "pinhole":
+        final_progress(5, "Cross-validation", 1, 1, "pinhole only")
+        return {
+            "enabled": False,
+            "folds": [],
+            "reason": "cross-validation currently supports pinhole only",
+        }
+
+    ordered = sorted(
+        selected_samples,
+        key=lambda sample: (
+            int(sample.get("index", -1)),
+            int(sample.get("sample_index", -1)),
+        ),
+    )
+    partitions = [ordered[::2], ordered[1::2]]
+    if min(len(partition) for partition in partitions) < MIN_SAMPLES:
+        final_progress(
+            5,
+            "Cross-validation",
+            1,
+            1,
+            f"skipped: need >= {MIN_SAMPLES * 2} selected views",
+        )
+        return {
+            "enabled": False,
+            "folds": [],
+            "reason": (
+                f"need at least {MIN_SAMPLES * 2} final views for two-fold "
+                f"cross-validation; got {len(ordered)}"
+            ),
+        }
+
+    fold_results: list[dict] = []
+    for fold_index in range(2):
+        train_samples = partitions[fold_index]
+        holdout_samples = partitions[1 - fold_index]
+        final_progress(
+            5,
+            "Cross-validation",
+            fold_index,
+            2,
+            f"fold={fold_index + 1} train={len(train_samples)} "
+            f"holdout={len(holdout_samples)}",
+        )
+        trained = calibrate_target_samples(
+            train_samples,
+            image_size,
+            board,
+            camera_model,
+            min_corners,
+        )
+        holdout_errors = np.asarray(
+            [
+                independent_sample_pnp_error(
+                    sample,
+                    board,
+                    trained["K"],
+                    trained["dist"],
+                )
+                for sample in holdout_samples
+            ],
+            dtype=np.float64,
+        )
+        finite_errors = holdout_errors[np.isfinite(holdout_errors)]
+        if finite_errors.size == 0:
+            raise RuntimeError(
+                f"Cross-validation fold {fold_index + 1} produced no valid PnP errors."
+            )
+        fold_results.append(
+            {
+                "fold": fold_index + 1,
+                "train_views": len(train_samples),
+                "holdout_views": len(holdout_samples),
+                "train_rms": float(trained["rms"]),
+                "holdout_pnp_rmse": float(
+                    np.sqrt(np.mean(finite_errors * finite_errors))
+                ),
+                "holdout_pnp_median": float(np.median(finite_errors)),
+                "K": trained["K"].tolist(),
+                "dist": trained["dist"].reshape(-1).tolist(),
+            }
+        )
+        final_progress(
+            5,
+            "Cross-validation",
+            fold_index + 1,
+            2,
+            f"fold={fold_index + 1} "
+            f"holdout={fold_results[-1]['holdout_pnp_rmse']:.6f}px",
+        )
+
+    fx_values = np.asarray([fold["K"][0][0] for fold in fold_results])
+    fy_values = np.asarray([fold["K"][1][1] for fold in fold_results])
+    cx_values = np.asarray([fold["K"][0][2] for fold in fold_results])
+    cy_values = np.asarray([fold["K"][1][2] for fold in fold_results])
+    return {
+        "enabled": True,
+        "folds": fold_results,
+        "fx_range_px": float(np.ptp(fx_values)),
+        "fy_range_px": float(np.ptp(fy_values)),
+        "cx_range_px": float(np.ptp(cx_values)),
+        "cy_range_px": float(np.ptp(cy_values)),
+        "mean_holdout_pnp_rmse": float(
+            np.mean([fold["holdout_pnp_rmse"] for fold in fold_results])
+        ),
+    }
+
+
+def run_final_calibration_pipeline(
+    samples: list[dict],
+    image_size: tuple[int, int],
+    board,
+    camera_model: str,
+    min_corners: int,
+    squares_x: int,
+    squares_y: int,
+) -> dict:
+    backend = configure_final_sharpness_backend()
+    device_name = backend.get("opencl_device", {}).get("name", "CPU")
+    final_progress(
+        1,
+        "Accelerator setup",
+        1,
+        1,
+        f"{backend['gradient_backend']} ({device_name})",
+    )
+
+    if is_charuco_target():
+        sharp_samples, blur_report = filter_motion_blur_samples(
+            samples,
+            int(squares_x),
+            int(squares_y),
+            min_corners,
+            backend,
+        )
+        if len(sharp_samples) < MIN_SAMPLES:
+            raise RuntimeError(
+                f"Only {len(sharp_samples)} sharp ChArUco samples remain; "
+                f"need at least {MIN_SAMPLES}."
+            )
+        diverse_samples, pose_rejected_count = select_pose_diverse_charuco_samples(
+            sharp_samples,
+            image_size,
+            board,
+        )
+    else:
+        final_progress(2, "Sharpness analysis", 1, 1, "not a ChArUco target")
+        diverse_samples = list(samples)
+        blur_report = {
+            "valid_before_blur_filter": len(samples),
+            "rejected_blur_count": 0,
+        }
+        pose_rejected_count = 0
+        final_progress(3, "Pose diversity", 1, 1, "not a ChArUco target")
+
+    results, robust_report = robust_calibrate_final_samples(
+        diverse_samples,
+        image_size,
+        board,
+        camera_model,
+        min_corners,
+    )
+    selected_samples = [
+        sample
+        for sample in diverse_samples
+        if sample.get("final_filter_status") == "selected"
+    ]
+    cross_validation = cross_validate_final_samples(
+        selected_samples,
+        image_size,
+        board,
+        camera_model,
+        min_corners,
+    )
+    results["final_processing"] = {
+        "enabled": True,
+        "acceleration": backend,
+        "input_sample_count": len(samples),
+        **blur_report,
+        "max_calibration_views": int(FINAL_MAX_CALIBRATION_VIEWS),
+        "rejected_pose_redundancy_count": pose_rejected_count,
+        "max_view_error_px": float(FINAL_MAX_VIEW_ERROR_PX),
+        **robust_report,
+        "cross_validation": cross_validation,
+    }
+    return results
+
+
 def compute_mean_reproj_error(K, dist, rvecs, tvecs, objpoints, imgpoints) -> tuple[float, list[float]]:
     total_err_sq = 0.0
     total_pts = 0
@@ -904,17 +1739,30 @@ def calibrate_charuco_samples(
         imgpoints.append(imgp)
         used_indices.append(sample["index"])
         corner_counts.append(int(len(objp)))
-        sample_metadata.append(
-            {
-                "sample_index": int(sample.get("sample_index", len(sample_metadata))),
-                "frame_index": int(sample["index"]),
-                "corner_count": int(sample.get("corner_count", len(objp))),
-                "marker_count": int(sample.get("marker_count", 0)),
-                "image_path": str(sample.get("image_path", "")),
-                "capture_mode": str(sample.get("capture_mode", "unknown")),
-                "timestamp": float(sample.get("timestamp", 0.0)),
-            }
-        )
+        metadata = {
+            "sample_index": int(sample.get("sample_index", len(sample_metadata))),
+            "frame_index": int(sample["index"]),
+            "corner_count": int(sample.get("corner_count", len(objp))),
+            "marker_count": int(sample.get("marker_count", 0)),
+            "image_path": str(sample.get("image_path", "")),
+            "capture_mode": str(sample.get("capture_mode", "unknown")),
+            "timestamp": float(sample.get("timestamp", 0.0)),
+            "final_filter_status": str(
+                sample.get("final_filter_status", "not_processed")
+            ),
+        }
+        for key in (
+            "rectified_laplacian_var",
+            "rectified_tenengrad_mean",
+            "pixels_per_square",
+            "sharpness_score",
+            "sharpness_percentile",
+            "final_reproj_error",
+        ):
+            value = sample.get(key)
+            if value is not None and np.isfinite(float(value)):
+                metadata[key] = float(value)
+        sample_metadata.append(metadata)
 
     if len(objpoints) < MIN_SAMPLES:
         raise RuntimeError(
@@ -1079,6 +1927,293 @@ def draw_hud(
     return vis
 
 
+def finite_csv_value(value) -> float | str:
+    if value is None:
+        return ""
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return ""
+    return numeric if np.isfinite(numeric) else ""
+
+
+def final_diagnostics_paths(output_path: str) -> dict[str, Path]:
+    yaml_path = Path(output_path)
+    diagnostics_dir = yaml_path.parent / f"{yaml_path.stem}_diagnostics"
+    return {
+        "directory": diagnostics_dir,
+        "selection_csv": diagnostics_dir / "selection_report.csv",
+        "rejected_blur_preview": diagnostics_dir
+        / "rejected_blur_contact_sheet.jpg",
+        "rejected_reprojection_preview": diagnostics_dir
+        / "rejected_reprojection_contact_sheet.jpg",
+        "selected_preview": diagnostics_dir / "selected_contact_sheet.jpg",
+    }
+
+
+def write_final_selection_csv(
+    path: Path,
+    samples: list[dict],
+    min_corners: int,
+) -> None:
+    fieldnames = [
+        "sample_index",
+        "frame_index",
+        "image_path",
+        "status",
+        "quality_ok",
+        "quality_reason",
+        "corner_count",
+        "marker_count",
+        "rectified_laplacian_var",
+        "rectified_tenengrad_mean",
+        "pixels_per_square",
+        "sharpness_score",
+        "sharpness_percentile",
+        "joint_reproj_error",
+        "sharpness_error",
+    ]
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for sample in samples:
+            quality_ok, quality_reason = charuco_detection_quality(
+                sample.get("charuco_ids"),
+                min_corners,
+            )
+            writer.writerow(
+                {
+                    "sample_index": int(sample.get("sample_index", -1)),
+                    "frame_index": int(sample.get("index", -1)),
+                    "image_path": str(sample.get("image_path", "")),
+                    "status": str(
+                        sample.get("final_filter_status", "not_processed")
+                    ),
+                    "quality_ok": bool(quality_ok),
+                    "quality_reason": str(
+                        sample.get("final_quality_reason", quality_reason)
+                    ),
+                    "corner_count": int(sample.get("corner_count", 0)),
+                    "marker_count": int(sample.get("marker_count", 0)),
+                    "rectified_laplacian_var": finite_csv_value(
+                        sample.get("rectified_laplacian_var")
+                    ),
+                    "rectified_tenengrad_mean": finite_csv_value(
+                        sample.get("rectified_tenengrad_mean")
+                    ),
+                    "pixels_per_square": finite_csv_value(
+                        sample.get("pixels_per_square")
+                    ),
+                    "sharpness_score": finite_csv_value(
+                        sample.get("sharpness_score")
+                    ),
+                    "sharpness_percentile": finite_csv_value(
+                        sample.get("sharpness_percentile")
+                    ),
+                    "joint_reproj_error": finite_csv_value(
+                        sample.get("final_reproj_error")
+                    ),
+                    "sharpness_error": str(sample.get("sharpness_error", "")),
+                }
+            )
+
+
+def sample_preview_error(sample: dict) -> float:
+    value = sample.get("final_reproj_error", math.nan)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return math.nan
+
+
+def compact_preview_metric(value) -> str:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return "n/a"
+    return f"{numeric:.3f}" if np.isfinite(numeric) else "n/a"
+
+
+def write_final_contact_sheet(
+    path: Path,
+    samples: list[dict],
+    title: str,
+    sort_key,
+) -> None:
+    chosen = sorted(samples, key=sort_key)[: int(FINAL_CONTACT_SHEET_MAX_IMAGES)]
+    if not chosen:
+        canvas = np.full((120, 900, 3), 245, dtype=np.uint8)
+        cv2.putText(
+            canvas,
+            f"{title}: no samples",
+            (18, 72),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (20, 20, 20),
+            2,
+            cv2.LINE_AA,
+        )
+        if not cv2.imwrite(str(path), canvas):
+            raise RuntimeError(f"Failed to write contact sheet: {path}")
+        return
+
+    tile_width, tile_height = 360, 290
+    columns = 4
+    rows = int(math.ceil(len(chosen) / columns))
+    canvas = np.full(
+        (60 + rows * tile_height, columns * tile_width, 3),
+        245,
+        dtype=np.uint8,
+    )
+    cv2.putText(
+        canvas,
+        title,
+        (12, 38),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.85,
+        (20, 20, 20),
+        2,
+        cv2.LINE_AA,
+    )
+    for position, sample in enumerate(chosen):
+        image = cv2.imread(str(sample.get("image_path", "")), cv2.IMREAD_COLOR)
+        if image is None:
+            continue
+        scale = min(
+            (tile_width - 12) / image.shape[1],
+            220 / image.shape[0],
+        )
+        resized = cv2.resize(
+            image,
+            None,
+            fx=scale,
+            fy=scale,
+            interpolation=cv2.INTER_AREA,
+        )
+        row = position // columns
+        column = position % columns
+        x0 = column * tile_width + (tile_width - resized.shape[1]) // 2
+        y0 = 60 + row * tile_height + 4
+        canvas[y0 : y0 + resized.shape[0], x0 : x0 + resized.shape[1]] = resized
+        text_x = column * tile_width + 8
+        text_y = 60 + row * tile_height + 235
+        sample_label = (
+            f"sample={int(sample.get('sample_index', -1)):04d} "
+            f"frame={int(sample.get('index', -1)):06d}"
+        )
+        cv2.putText(
+            canvas,
+            sample_label,
+            (text_x, text_y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.43,
+            (20, 20, 20),
+            1,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            canvas,
+            (
+                f"sharp={compact_preview_metric(sample.get('sharpness_score'))} "
+                f"error={compact_preview_metric(sample_preview_error(sample))}"
+            ),
+            (text_x, text_y + 22),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.43,
+            (20, 20, 20),
+            1,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            canvas,
+            str(sample.get("final_filter_status", "not_processed")),
+            (text_x, text_y + 44),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.43,
+            (20, 20, 20),
+            1,
+            cv2.LINE_AA,
+        )
+    if not cv2.imwrite(str(path), canvas):
+        raise RuntimeError(f"Failed to write contact sheet: {path}")
+
+
+def write_final_diagnostics(
+    paths: dict[str, Path],
+    samples: list[dict],
+    min_corners: int,
+) -> None:
+    paths["directory"].mkdir(parents=True, exist_ok=True)
+    write_final_selection_csv(paths["selection_csv"], samples, min_corners)
+    final_progress(
+        6,
+        "Save outputs",
+        2,
+        5,
+        str(paths["selection_csv"]),
+    )
+
+    blur_samples = [
+        sample
+        for sample in samples
+        if sample.get("final_filter_status") == "rejected_blur"
+    ]
+    write_final_contact_sheet(
+        paths["rejected_blur_preview"],
+        blur_samples,
+        "Rejected low-sharpness / motion-blur samples",
+        sort_key=lambda sample: float(sample.get("sharpness_score", math.inf)),
+    )
+    final_progress(
+        6,
+        "Save outputs",
+        3,
+        5,
+        str(paths["rejected_blur_preview"]),
+    )
+
+    reprojection_samples = [
+        sample
+        for sample in samples
+        if sample.get("final_filter_status") == "rejected_reprojection"
+    ]
+    write_final_contact_sheet(
+        paths["rejected_reprojection_preview"],
+        reprojection_samples,
+        "Rejected reprojection outliers",
+        sort_key=lambda sample: -sample_preview_error(sample),
+    )
+    final_progress(
+        6,
+        "Save outputs",
+        4,
+        5,
+        str(paths["rejected_reprojection_preview"]),
+    )
+
+    selected_samples = [
+        sample
+        for sample in samples
+        if sample.get("final_filter_status") == "selected"
+    ]
+    write_final_contact_sheet(
+        paths["selected_preview"],
+        selected_samples,
+        "Selected sharp, pose-diverse calibration samples",
+        sort_key=lambda sample: (
+            int(sample.get("index", -1)),
+            int(sample.get("sample_index", -1)),
+        ),
+    )
+    final_progress(
+        6,
+        "Save outputs",
+        5,
+        5,
+        str(paths["selected_preview"]),
+    )
+
+
 def save_yaml(
     path: str,
     image_size: tuple[int, int],
@@ -1141,6 +2276,8 @@ def save_yaml(
     if results["camera_model"] == "fisheye":
         data["D"] = results["dist"].reshape(-1).tolist()
         data["fisheye_flags"] = int(results.get("fisheye_flags", 0))
+    if results.get("final_processing"):
+        data["final_processing"] = results["final_processing"]
 
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w") as f:
@@ -1427,7 +2564,15 @@ def run_interactive_calibration(args: argparse.Namespace) -> str:
     if len(samples) == 0:
         raise RuntimeError(f"No {CALIBRATION_TARGET} samples were stored.")
 
-    results = calibrate_target_samples(samples, image_size, board, CAMERA_MODEL, args.min_corners)
+    results = run_final_calibration_pipeline(
+        samples,
+        image_size,
+        board,
+        CAMERA_MODEL,
+        args.min_corners,
+        args.squares_x,
+        args.squares_y,
+    )
     results["sample_image_dir"] = str(sample_image_dir)
     if CALIBRATION_TARGET == "apriltag_grid":
         results["apriltag_grid"] = {
@@ -1446,6 +2591,25 @@ def run_interactive_calibration(args: argparse.Namespace) -> str:
     print(f"  samples: {len(results['used_indices'])}")
     if results.get("rejected_indices"):
         print(f"  rejected_indices: {results['rejected_indices']}")
+    if results.get("final_processing"):
+        final_processing = results["final_processing"]
+        print(
+            "  final_processing: "
+            f"blur_rejected={final_processing.get('rejected_blur_count', 0)}, "
+            "pose_redundant="
+            f"{final_processing.get('rejected_pose_redundancy_count', 0)}, "
+            "reproj_rejected="
+            f"{final_processing.get('rejected_reprojection_count', 0)}"
+        )
+        cross_validation = final_processing.get("cross_validation", {})
+        if cross_validation.get("enabled"):
+            print(
+                "  cross_validation: "
+                f"mean_holdout_pnp_rmse="
+                f"{cross_validation['mean_holdout_pnp_rmse']:.6f}px, "
+                f"fx_range={cross_validation['fx_range_px']:.6f}px, "
+                f"fy_range={cross_validation['fy_range_px']:.6f}px"
+            )
     print(f"  rms: {results['rms']}")
     print(f"  mean_reproj_error: {results['mean_reproj_error']}")
     print(f"  K:\n{results['K']}")
@@ -1455,8 +2619,21 @@ def run_interactive_calibration(args: argparse.Namespace) -> str:
     output_path = args.output or default_output_path(camera_name, image_size, CAMERA_MODEL)
     if args.timestamp:
         output_path = append_timestamp_to_yaml_path(output_path)
+    diagnostics_paths = final_diagnostics_paths(output_path)
+    results["final_processing"]["diagnostics"] = {
+        key: str(value)
+        for key, value in diagnostics_paths.items()
+    }
+    final_progress(6, "Save outputs", 0, 5, output_path)
     save_yaml(output_path, image_size, results, args)
+    final_progress(6, "Save outputs", 1, 5, output_path)
+    write_final_diagnostics(
+        diagnostics_paths,
+        samples,
+        args.min_corners,
+    )
     print(f"[INFO] Saved intrinsics to {output_path}")
+    print(f"[INFO] Saved final diagnostics to {diagnostics_paths['directory']}")
     return output_path
 
 
