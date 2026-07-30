@@ -1,0 +1,1809 @@
+camera_model: pinhole
+calibration_target: charuco
+capture:
+  auto_save_valid_images: true
+  auto_save_cooldown_s: 0.8
+  min_corners_per_sample: 12
+  sample_image_root: outputs/intrinsics_charuco_samples
+  sample_image_dir: combined_0730_diagnostics_integration_test
+image_size:
+- 2592
+- 1944
+K:
+- - 1017.8771047768853
+  - 0.0
+  - 1330.0628878521659
+- - 0.0
+  - 1016.5913597120467
+  - 969.4412976371284
+- - 0.0
+  - 0.0
+  - 1.0
+dist:
+- -0.0034441453918242926
+- -0.040683714368021706
+- -0.0002039716379724527
+- -0.00045793233345430673
+- 0.013008893299793012
+fx: 1017.8771047768853
+fy: 1016.5913597120467
+cx: 1330.0628878521659
+cy: 969.4412976371284
+rms: 0.5019250347103836
+mean_reproj_error: 0.5019237635401799
+num_samples: 52
+used_indices:
+- 225
+- 581
+- 939
+- 1648
+- 1724
+- 1781
+- 1818
+- 1890
+- 2165
+- 2239
+- 2296
+- 2351
+- 2369
+- 2471
+- 2507
+- 2559
+- 2614
+- 2651
+- 2689
+- 192
+- 278
+- 315
+- 562
+- 707
+- 782
+- 820
+- 876
+- 970
+- 1044
+- 1270
+- 1344
+- 1362
+- 1381
+- 1400
+- 1513
+- 1552
+- 1603
+- 1713
+- 1858
+- 1913
+- 1950
+- 2040
+- 2113
+- 2131
+- 2205
+- 2265
+- 2417
+- 2474
+- 2666
+- 2723
+- 2777
+- 2833
+corner_counts:
+- 16
+- 24
+- 12
+- 24
+- 20
+- 24
+- 22
+- 22
+- 22
+- 24
+- 22
+- 24
+- 24
+- 22
+- 22
+- 24
+- 22
+- 22
+- 14
+- 24
+- 24
+- 24
+- 24
+- 24
+- 22
+- 24
+- 17
+- 22
+- 22
+- 24
+- 24
+- 24
+- 24
+- 24
+- 24
+- 24
+- 24
+- 24
+- 24
+- 18
+- 14
+- 22
+- 24
+- 22
+- 13
+- 20
+- 24
+- 20
+- 24
+- 24
+- 24
+- 13
+per_view_errors:
+- 0.3913617249869203
+- 0.597228349994918
+- 0.6791439749242602
+- 0.42233333215023566
+- 0.37811331076967564
+- 0.4254537485427305
+- 0.5978623691090951
+- 0.5671064509275661
+- 0.6101689580857906
+- 0.5741705147061371
+- 0.6089410772543885
+- 0.7594367766804758
+- 0.37759288130056434
+- 0.3431309810905906
+- 0.6925295147811694
+- 0.6167459420505568
+- 0.7974830649597282
+- 0.5542219926511098
+- 0.5443423112178071
+- 0.4206090881797742
+- 0.5097059688306599
+- 0.48603288419275614
+- 0.43707106651694616
+- 0.3697882703581229
+- 0.44922061229968135
+- 0.5089192052485219
+- 0.45597313781138776
+- 0.5542260762720178
+- 0.5693139653893566
+- 0.3332025563539674
+- 0.3545808911014144
+- 0.49230092072023873
+- 0.4964323743930374
+- 0.5985355644685778
+- 0.4806053901697542
+- 0.7347535243610511
+- 0.30966549895625045
+- 0.37574318148893315
+- 0.39446337079762867
+- 0.7231735761634911
+- 0.4380995585830948
+- 0.24547123726904757
+- 0.45499349925689975
+- 0.36560796700404236
+- 0.4052184130319099
+- 0.4136421152384216
+- 0.4694506542211733
+- 0.3198107485810119
+- 0.29202216636641776
+- 0.5187206025332397
+- 0.42675154428221496
+- 0.29650166334418515
+rejected_indices:
+- 2018
+- 2110
+- 2183
+- 2277
+- 1438
+- 1640
+- 2022
+- 2172
+- 189
+- 265
+- 671
+- 762
+- 1034
+- 1318
+- 1800
+- 301
+- 654
+- 804
+- 744
+- 842
+samples:
+- sample_index: 2
+  frame_index: 225
+  corner_count: 16
+  marker_count: 13
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0003_frame_000225_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 542.4819946289062
+  rectified_tenengrad_mean: 26700.416015625
+  pixels_per_square: 218.24542187191668
+  sharpness_score: -0.44017330610513844
+  sharpness_percentile: 0.3449612403100775
+  final_reproj_error: 0.3913617249869203
+- sample_index: 14
+  frame_index: 581
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0018_frame_000581_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 326.4622497558594
+  rectified_tenengrad_mean: 20712.87890625
+  pixels_per_square: 186.89203119071885
+  sharpness_score: 0.23370806420140933
+  sharpness_percentile: 0.5852713178294574
+  final_reproj_error: 0.597228349994918
+- sample_index: 32
+  frame_index: 939
+  corner_count: 12
+  marker_count: 12
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0036_frame_000939_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 198.42816162109375
+  rectified_tenengrad_mean: 15564.61328125
+  pixels_per_square: 156.10240742906433
+  sharpness_score: -0.9058993908127454
+  sharpness_percentile: 0.22868217054263565
+  final_reproj_error: 0.6791439749242602
+- sample_index: 65
+  frame_index: 1648
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0071_frame_001648_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 976.2667236328125
+  rectified_tenengrad_mean: 29807.1484375
+  pixels_per_square: 231.7602370246353
+  sharpness_score: 0.22497922179601215
+  sharpness_percentile: 0.5697674418604651
+  final_reproj_error: 0.42233333215023566
+- sample_index: 67
+  frame_index: 1724
+  corner_count: 20
+  marker_count: 15
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0075_frame_001724_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1092.1407470703125
+  rectified_tenengrad_mean: 34821.1171875
+  pixels_per_square: 217.61877985227738
+  sharpness_score: 0.8725052974559568
+  sharpness_percentile: 0.8604651162790697
+  final_reproj_error: 0.37811331076967564
+- sample_index: 70
+  frame_index: 1781
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0078_frame_001781_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 870.311767578125
+  rectified_tenengrad_mean: 31177.806640625
+  pixels_per_square: 195.48566228340727
+  sharpness_score: 2.08238817110875
+  sharpness_percentile: 0.9922480620155039
+  final_reproj_error: 0.4254537485427305
+- sample_index: 72
+  frame_index: 1818
+  corner_count: 22
+  marker_count: 16
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0080_frame_001818_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 902.5478515625
+  rectified_tenengrad_mean: 31789.81640625
+  pixels_per_square: 195.83762892432443
+  sharpness_score: 2.1620144017988014
+  sharpness_percentile: 0.9961240310077519
+  final_reproj_error: 0.5978623691090951
+- sample_index: 76
+  frame_index: 1890
+  corner_count: 22
+  marker_count: 16
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0084_frame_001890_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 378.14154052734375
+  rectified_tenengrad_mean: 23356.921875
+  pixels_per_square: 172.26270564901534
+  sharpness_score: 0.6626559744077838
+  sharpness_percentile: 0.7790697674418605
+  final_reproj_error: 0.5671064509275661
+- sample_index: 88
+  frame_index: 2165
+  corner_count: 22
+  marker_count: 16
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0096_frame_002165_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 415.7845458984375
+  rectified_tenengrad_mean: 21120.3515625
+  pixels_per_square: 176.18457681163483
+  sharpness_score: 0.4793327852397158
+  sharpness_percentile: 0.6976744186046512
+  final_reproj_error: 0.6101689580857906
+- sample_index: 92
+  frame_index: 2239
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0100_frame_002239_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 898.0862426757812
+  rectified_tenengrad_mean: 23758.71875
+  pixels_per_square: 189.41001991066423
+  sharpness_score: 1.4059011182573715
+  sharpness_percentile: 0.9728682170542635
+  final_reproj_error: 0.5741705147061371
+- sample_index: 95
+  frame_index: 2296
+  corner_count: 22
+  marker_count: 16
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0103_frame_002296_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1668.4608154296875
+  rectified_tenengrad_mean: 32588.474609375
+  pixels_per_square: 209.9384276885936
+  sharpness_score: 1.2681602361287423
+  sharpness_percentile: 0.9457364341085271
+  final_reproj_error: 0.6089410772543885
+- sample_index: 98
+  frame_index: 2351
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0106_frame_002351_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 883.1830444335938
+  rectified_tenengrad_mean: 25025.158203125
+  pixels_per_square: 226.2473488274421
+  sharpness_score: -0.21414969985262217
+  sharpness_percentile: 0.42248062015503873
+  final_reproj_error: 0.7594367766804758
+- sample_index: 99
+  frame_index: 2369
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0107_frame_002369_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1513.1531982421875
+  rectified_tenengrad_mean: 35295.12109375
+  pixels_per_square: 238.54756159398318
+  sharpness_score: 0.9630469550731773
+  sharpness_percentile: 0.8992248062015504
+  final_reproj_error: 0.37759288130056434
+- sample_index: 105
+  frame_index: 2471
+  corner_count: 22
+  marker_count: 16
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0113_frame_002471_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1178.6680908203125
+  rectified_tenengrad_mean: 33490.84375
+  pixels_per_square: 221.5589924502357
+  sharpness_score: 0.8961168400545891
+  sharpness_percentile: 0.872093023255814
+  final_reproj_error: 0.3431309810905906
+- sample_index: 107
+  frame_index: 2507
+  corner_count: 22
+  marker_count: 16
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0115_frame_002507_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1163.96044921875
+  rectified_tenengrad_mean: 29630.94921875
+  pixels_per_square: 255.7219936373259
+  sharpness_score: 0.37476257967276505
+  sharpness_percentile: 0.6472868217054264
+  final_reproj_error: 0.6925295147811694
+- sample_index: 110
+  frame_index: 2559
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0118_frame_002559_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1177.0828857421875
+  rectified_tenengrad_mean: 36365.15625
+  pixels_per_square: 194.6047263871174
+  sharpness_score: 2.724152524299421
+  sharpness_percentile: 1.0
+  final_reproj_error: 0.6167459420505568
+- sample_index: 114
+  frame_index: 2614
+  corner_count: 22
+  marker_count: 16
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0122_frame_002614_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 580.0252075195312
+  rectified_tenengrad_mean: 28335.841796875
+  pixels_per_square: 199.7997546338373
+  sharpness_score: -0.25475212918440693
+  sharpness_percentile: 0.40310077519379844
+  final_reproj_error: 0.7974830649597282
+- sample_index: 116
+  frame_index: 2651
+  corner_count: 22
+  marker_count: 16
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0124_frame_002651_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1131.806884765625
+  rectified_tenengrad_mean: 32535.3828125
+  pixels_per_square: 262.3826367817061
+  sharpness_score: 0.04908189576393587
+  sharpness_percentile: 0.5038759689922481
+  final_reproj_error: 0.5542219926511098
+- sample_index: 117
+  frame_index: 2689
+  corner_count: 14
+  marker_count: 11
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0126_frame_002689_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 888.3671875
+  rectified_tenengrad_mean: 23956.14453125
+  pixels_per_square: 279.9140690313208
+  sharpness_score: -1.0766511581818716
+  sharpness_percentile: 0.18604651162790697
+  final_reproj_error: 0.5443423112178071
+- sample_index: 124
+  frame_index: 192
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0002_frame_000192_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 965.2726440429688
+  rectified_tenengrad_mean: 28770.201171875
+  pixels_per_square: 221.6855421717078
+  sharpness_score: 0.387360735845501
+  sharpness_percentile: 0.6589147286821705
+  final_reproj_error: 0.4206090881797742
+- sample_index: 129
+  frame_index: 278
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0007_frame_000278_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1801.322998046875
+  rectified_tenengrad_mean: 33410.20703125
+  pixels_per_square: 283.7811878574768
+  sharpness_score: 0.5535118765974308
+  sharpness_percentile: 0.7403100775193798
+  final_reproj_error: 0.5097059688306599
+- sample_index: 131
+  frame_index: 315
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0009_frame_000315_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1715.63330078125
+  rectified_tenengrad_mean: 30208.23828125
+  pixels_per_square: 285.4689385789085
+  sharpness_score: 0.21137144302376043
+  sharpness_percentile: 0.5581395348837209
+  final_reproj_error: 0.48603288419275614
+- sample_index: 145
+  frame_index: 562
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0023_frame_000562_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 2189.974365234375
+  rectified_tenengrad_mean: 34973.8359375
+  pixels_per_square: 285.17629605791376
+  sharpness_score: 0.8677227366186345
+  sharpness_percentile: 0.8565891472868217
+  final_reproj_error: 0.43707106651694616
+- sample_index: 153
+  frame_index: 707
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0031_frame_000707_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1644.4920654296875
+  rectified_tenengrad_mean: 33529.06640625
+  pixels_per_square: 253.47058445909852
+  sharpness_score: 0.9376516317394861
+  sharpness_percentile: 0.8875968992248062
+  final_reproj_error: 0.3697882703581229
+- sample_index: 157
+  frame_index: 782
+  corner_count: 22
+  marker_count: 16
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0035_frame_000782_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1605.642578125
+  rectified_tenengrad_mean: 29393.923828125
+  pixels_per_square: 247.87502405870006
+  sharpness_score: 0.6544234193872921
+  sharpness_percentile: 0.7674418604651163
+  final_reproj_error: 0.44922061229968135
+- sample_index: 159
+  frame_index: 820
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0037_frame_000820_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1424.6583251953125
+  rectified_tenengrad_mean: 29769.185546875
+  pixels_per_square: 285.4823930811267
+  sharpness_score: -0.0022731974623301926
+  sharpness_percentile: 0.49224806201550386
+  final_reproj_error: 0.5089192052485219
+- sample_index: 162
+  frame_index: 876
+  corner_count: 17
+  marker_count: 13
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0040_frame_000876_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1736.878662109375
+  rectified_tenengrad_mean: 28675.408203125
+  pixels_per_square: 273.391011493726
+  sharpness_score: 0.06891230392719389
+  sharpness_percentile: 0.5155038759689923
+  final_reproj_error: 0.45597313781138776
+- sample_index: 167
+  frame_index: 970
+  corner_count: 22
+  marker_count: 16
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0045_frame_000970_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1221.9285888671875
+  rectified_tenengrad_mean: 30398.43359375
+  pixels_per_square: 270.1469627489014
+  sharpness_score: -0.0812567919027824
+  sharpness_percentile: 0.4689922480620155
+  final_reproj_error: 0.5542260762720178
+- sample_index: 171
+  frame_index: 1044
+  corner_count: 22
+  marker_count: 16
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0049_frame_001044_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 652.9882202148438
+  rectified_tenengrad_mean: 24027.2421875
+  pixels_per_square: 182.57080941998873
+  sharpness_score: 1.1771940527851388
+  sharpness_percentile: 0.9302325581395349
+  final_reproj_error: 0.5693139653893566
+- sample_index: 183
+  frame_index: 1270
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0061_frame_001270_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 921.9390258789062
+  rectified_tenengrad_mean: 23398.15234375
+  pixels_per_square: 193.6328262045896
+  sharpness_score: 1.387606321697908
+  sharpness_percentile: 0.9612403100775194
+  final_reproj_error: 0.3332025563539674
+- sample_index: 187
+  frame_index: 1344
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0065_frame_001344_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1378.701171875
+  rectified_tenengrad_mean: 36046.734375
+  pixels_per_square: 201.13743742519247
+  sharpness_score: 1.2150233812741376
+  sharpness_percentile: 0.9341085271317829
+  final_reproj_error: 0.3545808911014144
+- sample_index: 188
+  frame_index: 1362
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0066_frame_001362_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1026.850341796875
+  rectified_tenengrad_mean: 30459.8125
+  pixels_per_square: 210.71374839475004
+  sharpness_score: 0.5625220099512005
+  sharpness_percentile: 0.7441860465116279
+  final_reproj_error: 0.49230092072023873
+- sample_index: 189
+  frame_index: 1381
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0067_frame_001381_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 672.184326171875
+  rectified_tenengrad_mean: 20624.373046875
+  pixels_per_square: 219.36147440256195
+  sharpness_score: -0.6356266623071318
+  sharpness_percentile: 0.29844961240310075
+  final_reproj_error: 0.4964323743930374
+- sample_index: 190
+  frame_index: 1400
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0068_frame_001400_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 859.201416015625
+  rectified_tenengrad_mean: 22821.09375
+  pixels_per_square: 225.42298940202033
+  sharpness_score: -0.4224308905918342
+  sharpness_percentile: 0.36046511627906974
+  final_reproj_error: 0.5985355644685778
+- sample_index: 195
+  frame_index: 1513
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0074_frame_001513_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 362.8131408691406
+  rectified_tenengrad_mean: 16577.126953125
+  pixels_per_square: 154.41584325807142
+  sharpness_score: -0.256315508989424
+  sharpness_percentile: 0.3992248062015504
+  final_reproj_error: 0.4806053901697542
+- sample_index: 197
+  frame_index: 1552
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0076_frame_001552_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 232.5060577392578
+  rectified_tenengrad_mean: 14049.564453125
+  pixels_per_square: 166.12810343924815
+  sharpness_score: -1.0426520515921953
+  sharpness_percentile: 0.1937984496124031
+  final_reproj_error: 0.7347535243610511
+- sample_index: 200
+  frame_index: 1603
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0079_frame_001603_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1443.0379638671875
+  rectified_tenengrad_mean: 35518.4296875
+  pixels_per_square: 207.60892313870676
+  sharpness_score: 1.2441777505316294
+  sharpness_percentile: 0.937984496124031
+  final_reproj_error: 0.30966549895625045
+- sample_index: 205
+  frame_index: 1713
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0085_frame_001713_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1218.9940185546875
+  rectified_tenengrad_mean: 36499.5390625
+  pixels_per_square: 221.24106037336801
+  sharpness_score: 1.0881659429396093
+  sharpness_percentile: 0.9224806201550387
+  final_reproj_error: 0.37574318148893315
+- sample_index: 210
+  frame_index: 1858
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0091_frame_001858_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 485.6081848144531
+  rectified_tenengrad_mean: 17330.71484375
+  pixels_per_square: 193.61491339413328
+  sharpness_score: 0.09399455540708163
+  sharpness_percentile: 0.5310077519379846
+  final_reproj_error: 0.39446337079762867
+- sample_index: 213
+  frame_index: 1913
+  corner_count: 18
+  marker_count: 14
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0094_frame_001913_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 713.1087036132812
+  rectified_tenengrad_mean: 24623.70703125
+  pixels_per_square: 243.9782772883139
+  sharpness_score: -0.44269370923724394
+  sharpness_percentile: 0.3372093023255814
+  final_reproj_error: 0.7231735761634911
+- sample_index: 215
+  frame_index: 1950
+  corner_count: 14
+  marker_count: 11
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0096_frame_001950_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1211.1693115234375
+  rectified_tenengrad_mean: 28522.302734375
+  pixels_per_square: 285.21328777065696
+  sharpness_score: -0.27744668567162256
+  sharpness_percentile: 0.39147286821705424
+  final_reproj_error: 0.4380995585830948
+- sample_index: 220
+  frame_index: 2040
+  corner_count: 22
+  marker_count: 16
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0101_frame_002040_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1080.850341796875
+  rectified_tenengrad_mean: 28750.43359375
+  pixels_per_square: 203.63911078194377
+  sharpness_score: 0.5228315772241254
+  sharpness_percentile: 0.7131782945736435
+  final_reproj_error: 0.24547123726904757
+- sample_index: 224
+  frame_index: 2113
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0105_frame_002113_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1294.322998046875
+  rectified_tenengrad_mean: 32454.6328125
+  pixels_per_square: 217.9488975086933
+  sharpness_score: 0.9539548058195957
+  sharpness_percentile: 0.8953488372093024
+  final_reproj_error: 0.45499349925689975
+- sample_index: 225
+  frame_index: 2131
+  corner_count: 22
+  marker_count: 16
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0106_frame_002131_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 731.6403198242188
+  rectified_tenengrad_mean: 23822.013671875
+  pixels_per_square: 211.23441106395072
+  sharpness_score: -0.2796001251011342
+  sharpness_percentile: 0.3875968992248062
+  final_reproj_error: 0.36560796700404236
+- sample_index: 228
+  frame_index: 2205
+  corner_count: 13
+  marker_count: 11
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0110_frame_002205_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 2375.533935546875
+  rectified_tenengrad_mean: 43488.16015625
+  pixels_per_square: 322.69908886850953
+  sharpness_score: 1.5856151885304377
+  sharpness_percentile: 0.9844961240310077
+  final_reproj_error: 0.4052184130319099
+- sample_index: 231
+  frame_index: 2265
+  corner_count: 20
+  marker_count: 15
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0113_frame_002265_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 549.0010986328125
+  rectified_tenengrad_mean: 18905.0625
+  pixels_per_square: 193.5597372522371
+  sharpness_score: 0.41772662928563875
+  sharpness_percentile: 0.6627906976744186
+  final_reproj_error: 0.4136421152384216
+- sample_index: 237
+  frame_index: 2417
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0121_frame_002417_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1220.7012939453125
+  rectified_tenengrad_mean: 32511.044921875
+  pixels_per_square: 223.6497829100664
+  sharpness_score: 0.6026113623429972
+  sharpness_percentile: 0.7558139534883721
+  final_reproj_error: 0.4694506542211733
+- sample_index: 240
+  frame_index: 2474
+  corner_count: 20
+  marker_count: 15
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0124_frame_002474_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 585.4855346679688
+  rectified_tenengrad_mean: 21076.9296875
+  pixels_per_square: 161.518132343707
+  sharpness_score: 0.7506098641555816
+  sharpness_percentile: 0.8255813953488372
+  final_reproj_error: 0.3198107485810119
+- sample_index: 249
+  frame_index: 2666
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0134_frame_002666_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 892.8355102539062
+  rectified_tenengrad_mean: 23522.990234375
+  pixels_per_square: 200.16324542237118
+  sharpness_score: -0.061248916672881036
+  sharpness_percentile: 0.4806201550387597
+  final_reproj_error: 0.29202216636641776
+- sample_index: 252
+  frame_index: 2723
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0137_frame_002723_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1704.457275390625
+  rectified_tenengrad_mean: 37165.47265625
+  pixels_per_square: 271.8509979431161
+  sharpness_score: 0.8173102236853372
+  sharpness_percentile: 0.8372093023255814
+  final_reproj_error: 0.5187206025332397
+- sample_index: 255
+  frame_index: 2777
+  corner_count: 24
+  marker_count: 17
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0140_frame_002777_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 1095.2381591796875
+  rectified_tenengrad_mean: 32488.337890625
+  pixels_per_square: 210.12701183944955
+  sharpness_score: 0.7539032492012394
+  sharpness_percentile: 0.8294573643410853
+  final_reproj_error: 0.42675154428221496
+- sample_index: 258
+  frame_index: 2833
+  corner_count: 13
+  marker_count: 11
+  image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0143_frame_002833_auto.png
+  capture_mode: diagnostics_integration_test
+  timestamp: 0.0
+  final_filter_status: selected
+  rectified_laplacian_var: 884.7701416015625
+  rectified_tenengrad_mean: 22092.03125
+  pixels_per_square: 252.50531426366462
+  sharpness_score: -0.45994043859236095
+  sharpness_percentile: 0.32558139534883723
+  final_reproj_error: 0.29650166334418515
+charuco:
+  squares_x: 7
+  squares_y: 5
+  square_length: 0.04
+  marker_length: 0.03
+  dictionary: DICT_5X5_50
+  legacy_pattern: false
+final_processing:
+  enabled: true
+  acceleration:
+    requested_gpu: true
+    gradient_backend: opencl_umat
+    opencl_device:
+      name: NVIDIA GeForce RTX 4090 D
+      vendor: NVIDIA Corporation
+      version: OpenCL 3.0 CUDA
+    calibration_backend: cpu_opencv
+  input_sample_count: 259
+  valid_before_blur_filter: 259
+  scored_for_blur: 259
+  blur_reject_fraction: 0.15
+  requested_blur_reject_count: 39
+  rejected_blur_count: 39
+  rejected_blur_samples:
+  - sample_index: 1
+    frame_index: 207
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0002_frame_000207_auto.png
+    sharpness_score: -1.484617563428336
+    sharpness_percentile: 0.09689922480620156
+  - sample_index: 3
+    frame_index: 246
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0004_frame_000246_auto.png
+    sharpness_score: -1.630112704850314
+    sharpness_percentile: 0.08139534883720931
+  - sample_index: 8
+    frame_index: 468
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0012_frame_000468_auto.png
+    sharpness_score: -2.5661873719451336
+    sharpness_percentile: 0.011627906976744186
+  - sample_index: 20
+    frame_index: 708
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0024_frame_000708_auto.png
+    sharpness_score: -2.1141159621997128
+    sharpness_percentile: 0.031007751937984496
+  - sample_index: 21
+    frame_index: 726
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0025_frame_000726_auto.png
+    sharpness_score: -1.4294677768018658
+    sharpness_percentile: 0.13178294573643412
+  - sample_index: 30
+    frame_index: 902
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0034_frame_000902_auto.png
+    sharpness_score: -1.4574701971194006
+    sharpness_percentile: 0.12403100775193798
+  - sample_index: 31
+    frame_index: 921
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0035_frame_000921_auto.png
+    sharpness_score: -1.8315032826437108
+    sharpness_percentile: 0.050387596899224806
+  - sample_index: 34
+    frame_index: 978
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0038_frame_000978_auto.png
+    sharpness_score: -1.6622670698221733
+    sharpness_percentile: 0.07364341085271318
+  - sample_index: 44
+    frame_index: 1167
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0048_frame_001167_auto.png
+    sharpness_score: -1.4712264426891948
+    sharpness_percentile: 0.1124031007751938
+  - sample_index: 45
+    frame_index: 1186
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0049_frame_001186_auto.png
+    sharpness_score: -1.67318568729332
+    sharpness_percentile: 0.06976744186046512
+  - sample_index: 47
+    frame_index: 1224
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0051_frame_001224_auto.png
+    sharpness_score: -1.3199793715712542
+    sharpness_percentile: 0.14728682170542637
+  - sample_index: 48
+    frame_index: 1243
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0052_frame_001243_auto.png
+    sharpness_score: -1.437556564089847
+    sharpness_percentile: 0.12790697674418605
+  - sample_index: 49
+    frame_index: 1262
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0053_frame_001262_auto.png
+    sharpness_score: -1.851332763229105
+    sharpness_percentile: 0.046511627906976744
+  - sample_index: 54
+    frame_index: 1355
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0058_frame_001355_auto.png
+    sharpness_score: -1.580838017667938
+    sharpness_percentile: 0.08914728682170543
+  - sample_index: 55
+    frame_index: 1373
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0059_frame_001373_auto.png
+    sharpness_score: -1.7604561721204557
+    sharpness_percentile: 0.05813953488372093
+  - sample_index: 56
+    frame_index: 1392
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0060_frame_001392_auto.png
+    sharpness_score: -2.348298101939944
+    sharpness_percentile: 0.023255813953488372
+  - sample_index: 57
+    frame_index: 1412
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0061_frame_001412_auto.png
+    sharpness_score: -2.4186425138020287
+    sharpness_percentile: 0.01937984496124031
+  - sample_index: 58
+    frame_index: 1518
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0064_frame_001518_auto.png
+    sharpness_score: -1.8890048556964745
+    sharpness_percentile: 0.04263565891472868
+  - sample_index: 59
+    frame_index: 1537
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0065_frame_001537_auto.png
+    sharpness_score: -2.517604479250922
+    sharpness_percentile: 0.015503875968992248
+  - sample_index: 60
+    frame_index: 1555
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0066_frame_001555_auto.png
+    sharpness_score: -1.4652780109390906
+    sharpness_percentile: 0.11627906976744186
+  - sample_index: 61
+    frame_index: 1573
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0067_frame_001573_auto.png
+    sharpness_score: -1.7525984103162857
+    sharpness_percentile: 0.06201550387596899
+  - sample_index: 62
+    frame_index: 1591
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0068_frame_001591_auto.png
+    sharpness_score: -1.5941480843107907
+    sharpness_percentile: 0.08527131782945736
+  - sample_index: 63
+    frame_index: 1611
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0069_frame_001611_auto.png
+    sharpness_score: -2.6864167126357357
+    sharpness_percentile: 0.003875968992248062
+  - sample_index: 68
+    frame_index: 1743
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0076_frame_001743_auto.png
+    sharpness_score: -1.458851345443545
+    sharpness_percentile: 0.12015503875968993
+  - sample_index: 84
+    frame_index: 2091
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0092_frame_002091_auto.png
+    sharpness_score: -2.57985548403714
+    sharpness_percentile: 0.007751937984496124
+  - sample_index: 158
+    frame_index: 801
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0036_frame_000801_auto.png
+    sharpness_score: -2.160849179185116
+    sharpness_percentile: 0.027131782945736434
+  - sample_index: 176
+    frame_index: 1138
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0054_frame_001138_auto.png
+    sharpness_score: -1.4780464379417062
+    sharpness_percentile: 0.10465116279069768
+  - sample_index: 193
+    frame_index: 1457
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0071_frame_001457_auto.png
+    sharpness_score: -1.9276775829150106
+    sharpness_percentile: 0.03488372093023256
+  - sample_index: 194
+    frame_index: 1493
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0073_frame_001493_auto.png
+    sharpness_score: -1.6461512122388857
+    sharpness_percentile: 0.07751937984496124
+  - sample_index: 201
+    frame_index: 1621
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0080_frame_001621_auto.png
+    sharpness_score: -1.8267191419839879
+    sharpness_percentile: 0.05426356589147287
+  - sample_index: 203
+    frame_index: 1678
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0083_frame_001678_auto.png
+    sharpness_score: -1.4248351064639935
+    sharpness_percentile: 0.13565891472868216
+  - sample_index: 212
+    frame_index: 1894
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0093_frame_001894_auto.png
+    sharpness_score: -1.4803817716606256
+    sharpness_percentile: 0.10077519379844961
+  - sample_index: 222
+    frame_index: 2077
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0103_frame_002077_auto.png
+    sharpness_score: -1.473592956408115
+    sharpness_percentile: 0.10852713178294573
+  - sample_index: 227
+    frame_index: 2190
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0109_frame_002190_auto.png
+    sharpness_score: -1.5077787284702322
+    sharpness_percentile: 0.09302325581395349
+  - sample_index: 229
+    frame_index: 2225
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0111_frame_002225_auto.png
+    sharpness_score: -1.9038933230705042
+    sharpness_percentile: 0.03875968992248062
+  - sample_index: 232
+    frame_index: 2304
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0115_frame_002304_auto.png
+    sharpness_score: -1.7244619553910518
+    sharpness_percentile: 0.06589147286821706
+  - sample_index: 233
+    frame_index: 2323
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0116_frame_002323_auto.png
+    sharpness_score: -1.3749336046214833
+    sharpness_percentile: 0.1434108527131783
+  - sample_index: 246
+    frame_index: 2609
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0131_frame_002609_auto.png
+    sharpness_score: -1.403669664181113
+    sharpness_percentile: 0.13953488372093023
+  - sample_index: 250
+    frame_index: 2686
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0135_frame_002686_auto.png
+    sharpness_score: -3.8881495577007366
+    sharpness_percentile: 0.0
+  max_calibration_views: 72
+  rejected_pose_redundancy_count: 148
+  rejected_pose_redundancy_samples:
+  - sample_index: 5
+    frame_index: 283
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0006_frame_000283_auto.png
+  - sample_index: 7
+    frame_index: 449
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0011_frame_000449_auto.png
+  - sample_index: 9
+    frame_index: 487
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0013_frame_000487_auto.png
+  - sample_index: 10
+    frame_index: 506
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0014_frame_000506_auto.png
+  - sample_index: 11
+    frame_index: 525
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0015_frame_000525_auto.png
+  - sample_index: 12
+    frame_index: 543
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0016_frame_000543_auto.png
+  - sample_index: 13
+    frame_index: 562
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0017_frame_000562_auto.png
+  - sample_index: 15
+    frame_index: 600
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0019_frame_000600_auto.png
+  - sample_index: 16
+    frame_index: 618
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0020_frame_000618_auto.png
+  - sample_index: 17
+    frame_index: 636
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0021_frame_000636_auto.png
+  - sample_index: 24
+    frame_index: 785
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0028_frame_000785_auto.png
+  - sample_index: 26
+    frame_index: 823
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0030_frame_000823_auto.png
+  - sample_index: 28
+    frame_index: 863
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0032_frame_000863_auto.png
+  - sample_index: 29
+    frame_index: 883
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0033_frame_000883_auto.png
+  - sample_index: 33
+    frame_index: 958
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0037_frame_000958_auto.png
+  - sample_index: 35
+    frame_index: 997
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0039_frame_000997_auto.png
+  - sample_index: 36
+    frame_index: 1015
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0040_frame_001015_auto.png
+  - sample_index: 38
+    frame_index: 1053
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0042_frame_001053_auto.png
+  - sample_index: 39
+    frame_index: 1072
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0043_frame_001072_auto.png
+  - sample_index: 40
+    frame_index: 1091
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0044_frame_001091_auto.png
+  - sample_index: 41
+    frame_index: 1110
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0045_frame_001110_auto.png
+  - sample_index: 42
+    frame_index: 1129
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0046_frame_001129_auto.png
+  - sample_index: 43
+    frame_index: 1148
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0047_frame_001148_auto.png
+  - sample_index: 46
+    frame_index: 1205
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0050_frame_001205_auto.png
+  - sample_index: 50
+    frame_index: 1281
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0054_frame_001281_auto.png
+  - sample_index: 51
+    frame_index: 1299
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0055_frame_001299_auto.png
+  - sample_index: 53
+    frame_index: 1336
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0057_frame_001336_auto.png
+  - sample_index: 64
+    frame_index: 1629
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0070_frame_001629_auto.png
+  - sample_index: 66
+    frame_index: 1706
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0074_frame_001706_auto.png
+  - sample_index: 69
+    frame_index: 1762
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0077_frame_001762_auto.png
+  - sample_index: 71
+    frame_index: 1799
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0079_frame_001799_auto.png
+  - sample_index: 73
+    frame_index: 1836
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0081_frame_001836_auto.png
+  - sample_index: 74
+    frame_index: 1854
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0082_frame_001854_auto.png
+  - sample_index: 75
+    frame_index: 1872
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0083_frame_001872_auto.png
+  - sample_index: 77
+    frame_index: 1908
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0085_frame_001908_auto.png
+  - sample_index: 78
+    frame_index: 1926
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0086_frame_001926_auto.png
+  - sample_index: 79
+    frame_index: 1945
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0087_frame_001945_auto.png
+  - sample_index: 80
+    frame_index: 1963
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0088_frame_001963_auto.png
+  - sample_index: 81
+    frame_index: 1981
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0089_frame_001981_auto.png
+  - sample_index: 82
+    frame_index: 1999
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0090_frame_001999_auto.png
+  - sample_index: 86
+    frame_index: 2129
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0094_frame_002129_auto.png
+  - sample_index: 87
+    frame_index: 2147
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0095_frame_002147_auto.png
+  - sample_index: 90
+    frame_index: 2202
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0098_frame_002202_auto.png
+  - sample_index: 91
+    frame_index: 2220
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0099_frame_002220_auto.png
+  - sample_index: 93
+    frame_index: 2257
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0101_frame_002257_auto.png
+  - sample_index: 96
+    frame_index: 2314
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0104_frame_002314_auto.png
+  - sample_index: 97
+    frame_index: 2333
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0105_frame_002333_auto.png
+  - sample_index: 100
+    frame_index: 2383
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0108_frame_002383_auto.png
+  - sample_index: 101
+    frame_index: 2401
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0109_frame_002401_auto.png
+  - sample_index: 102
+    frame_index: 2419
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0110_frame_002419_auto.png
+  - sample_index: 103
+    frame_index: 2436
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0111_frame_002436_auto.png
+  - sample_index: 104
+    frame_index: 2453
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0112_frame_002453_auto.png
+  - sample_index: 106
+    frame_index: 2489
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0114_frame_002489_auto.png
+  - sample_index: 108
+    frame_index: 2525
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0116_frame_002525_auto.png
+  - sample_index: 109
+    frame_index: 2542
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0117_frame_002542_auto.png
+  - sample_index: 111
+    frame_index: 2571
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0119_frame_002571_auto.png
+  - sample_index: 112
+    frame_index: 2585
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0120_frame_002585_auto.png
+  - sample_index: 113
+    frame_index: 2598
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0121_frame_002598_auto.png
+  - sample_index: 115
+    frame_index: 2632
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0123_frame_002632_auto.png
+  - sample_index: 118
+    frame_index: 2708
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0127_frame_002708_auto.png
+  - sample_index: 119
+    frame_index: 2726
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0128_frame_002726_auto.png
+  - sample_index: 120
+    frame_index: 2744
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0129_frame_002744_auto.png
+  - sample_index: 121
+    frame_index: 2763
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0130_frame_002763_auto.png
+  - sample_index: 122
+    frame_index: 2782
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0131_frame_002782_auto.png
+  - sample_index: 123
+    frame_index: 174
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0001_frame_000174_auto.png
+  - sample_index: 125
+    frame_index: 210
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0003_frame_000210_auto.png
+  - sample_index: 126
+    frame_index: 225
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0004_frame_000225_auto.png
+  - sample_index: 127
+    frame_index: 244
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0005_frame_000244_auto.png
+  - sample_index: 128
+    frame_index: 261
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0006_frame_000261_auto.png
+  - sample_index: 130
+    frame_index: 296
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0008_frame_000296_auto.png
+  - sample_index: 132
+    frame_index: 333
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0010_frame_000333_auto.png
+  - sample_index: 133
+    frame_index: 352
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0011_frame_000352_auto.png
+  - sample_index: 134
+    frame_index: 368
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0012_frame_000368_auto.png
+  - sample_index: 135
+    frame_index: 385
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0013_frame_000385_auto.png
+  - sample_index: 136
+    frame_index: 401
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0014_frame_000401_auto.png
+  - sample_index: 137
+    frame_index: 417
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0015_frame_000417_auto.png
+  - sample_index: 138
+    frame_index: 433
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0016_frame_000433_auto.png
+  - sample_index: 139
+    frame_index: 452
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0017_frame_000452_auto.png
+  - sample_index: 140
+    frame_index: 470
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0018_frame_000470_auto.png
+  - sample_index: 141
+    frame_index: 487
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0019_frame_000487_auto.png
+  - sample_index: 142
+    frame_index: 506
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0020_frame_000506_auto.png
+  - sample_index: 143
+    frame_index: 525
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0021_frame_000525_auto.png
+  - sample_index: 144
+    frame_index: 544
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0022_frame_000544_auto.png
+  - sample_index: 146
+    frame_index: 580
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0024_frame_000580_auto.png
+  - sample_index: 147
+    frame_index: 597
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0025_frame_000597_auto.png
+  - sample_index: 148
+    frame_index: 614
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0026_frame_000614_auto.png
+  - sample_index: 149
+    frame_index: 633
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0027_frame_000633_auto.png
+  - sample_index: 150
+    frame_index: 652
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0028_frame_000652_auto.png
+  - sample_index: 151
+    frame_index: 671
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0029_frame_000671_auto.png
+  - sample_index: 152
+    frame_index: 689
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0030_frame_000689_auto.png
+  - sample_index: 154
+    frame_index: 726
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0032_frame_000726_auto.png
+  - sample_index: 155
+    frame_index: 745
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0033_frame_000745_auto.png
+  - sample_index: 156
+    frame_index: 764
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0034_frame_000764_auto.png
+  - sample_index: 160
+    frame_index: 839
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0038_frame_000839_auto.png
+  - sample_index: 161
+    frame_index: 857
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0039_frame_000857_auto.png
+  - sample_index: 163
+    frame_index: 895
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0041_frame_000895_auto.png
+  - sample_index: 164
+    frame_index: 914
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0042_frame_000914_auto.png
+  - sample_index: 165
+    frame_index: 933
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0043_frame_000933_auto.png
+  - sample_index: 166
+    frame_index: 952
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0044_frame_000952_auto.png
+  - sample_index: 168
+    frame_index: 988
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0046_frame_000988_auto.png
+  - sample_index: 169
+    frame_index: 1007
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0047_frame_001007_auto.png
+  - sample_index: 170
+    frame_index: 1026
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0048_frame_001026_auto.png
+  - sample_index: 172
+    frame_index: 1063
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0050_frame_001063_auto.png
+  - sample_index: 173
+    frame_index: 1082
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0051_frame_001082_auto.png
+  - sample_index: 174
+    frame_index: 1101
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0052_frame_001101_auto.png
+  - sample_index: 175
+    frame_index: 1119
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0053_frame_001119_auto.png
+  - sample_index: 177
+    frame_index: 1157
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0055_frame_001157_auto.png
+  - sample_index: 178
+    frame_index: 1176
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0056_frame_001176_auto.png
+  - sample_index: 179
+    frame_index: 1195
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0057_frame_001195_auto.png
+  - sample_index: 180
+    frame_index: 1214
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0058_frame_001214_auto.png
+  - sample_index: 181
+    frame_index: 1233
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0059_frame_001233_auto.png
+  - sample_index: 182
+    frame_index: 1251
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0060_frame_001251_auto.png
+  - sample_index: 184
+    frame_index: 1289
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0062_frame_001289_auto.png
+  - sample_index: 185
+    frame_index: 1308
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0063_frame_001308_auto.png
+  - sample_index: 186
+    frame_index: 1326
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0064_frame_001326_auto.png
+  - sample_index: 191
+    frame_index: 1419
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0069_frame_001419_auto.png
+  - sample_index: 196
+    frame_index: 1532
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0075_frame_001532_auto.png
+  - sample_index: 198
+    frame_index: 1571
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0077_frame_001571_auto.png
+  - sample_index: 199
+    frame_index: 1589
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0078_frame_001589_auto.png
+  - sample_index: 204
+    frame_index: 1695
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0084_frame_001695_auto.png
+  - sample_index: 206
+    frame_index: 1731
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0086_frame_001731_auto.png
+  - sample_index: 208
+    frame_index: 1819
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0089_frame_001819_auto.png
+  - sample_index: 209
+    frame_index: 1838
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0090_frame_001838_auto.png
+  - sample_index: 211
+    frame_index: 1876
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0092_frame_001876_auto.png
+  - sample_index: 214
+    frame_index: 1932
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0095_frame_001932_auto.png
+  - sample_index: 216
+    frame_index: 1968
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0097_frame_001968_auto.png
+  - sample_index: 217
+    frame_index: 1986
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0098_frame_001986_auto.png
+  - sample_index: 218
+    frame_index: 2004
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0099_frame_002004_auto.png
+  - sample_index: 221
+    frame_index: 2058
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0102_frame_002058_auto.png
+  - sample_index: 223
+    frame_index: 2095
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0104_frame_002095_auto.png
+  - sample_index: 230
+    frame_index: 2246
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0112_frame_002246_auto.png
+  - sample_index: 234
+    frame_index: 2342
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0117_frame_002342_auto.png
+  - sample_index: 235
+    frame_index: 2360
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0118_frame_002360_auto.png
+  - sample_index: 236
+    frame_index: 2379
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0119_frame_002379_auto.png
+  - sample_index: 238
+    frame_index: 2436
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0122_frame_002436_auto.png
+  - sample_index: 239
+    frame_index: 2455
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0123_frame_002455_auto.png
+  - sample_index: 241
+    frame_index: 2493
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0125_frame_002493_auto.png
+  - sample_index: 242
+    frame_index: 2512
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0126_frame_002512_auto.png
+  - sample_index: 243
+    frame_index: 2552
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0128_frame_002552_auto.png
+  - sample_index: 244
+    frame_index: 2571
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0129_frame_002571_auto.png
+  - sample_index: 245
+    frame_index: 2590
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0130_frame_002590_auto.png
+  - sample_index: 247
+    frame_index: 2628
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0132_frame_002628_auto.png
+  - sample_index: 248
+    frame_index: 2647
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0133_frame_002647_auto.png
+  - sample_index: 251
+    frame_index: 2705
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0136_frame_002705_auto.png
+  - sample_index: 253
+    frame_index: 2741
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0138_frame_002741_auto.png
+  - sample_index: 254
+    frame_index: 2759
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0139_frame_002759_auto.png
+  - sample_index: 256
+    frame_index: 2796
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0141_frame_002796_auto.png
+  - sample_index: 257
+    frame_index: 2814
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0142_frame_002814_auto.png
+  max_view_error_px: 0.8
+  calibration_rounds:
+  - round: 1
+    num_views: 72
+    rms: 1.1274608515350155
+    median_view_error: 0.5557819659776975
+    threshold: 0.8
+    num_rejected: 8
+  - round: 2
+    num_views: 64
+    rms: 0.5828643666634638
+    median_view_error: 0.5285983086830772
+    threshold: 0.8
+    num_rejected: 7
+  - round: 3
+    num_views: 57
+    rms: 0.5348124313288004
+    median_view_error: 0.5047903406643609
+    threshold: 0.8
+    num_rejected: 3
+  - round: 4
+    num_views: 54
+    rms: 0.5131624295467826
+    median_view_error: 0.46081242743764306
+    threshold: 0.8
+    num_rejected: 2
+  - round: 5
+    num_views: 52
+    rms: 0.5019250347103836
+    median_view_error: 0.46271189601628054
+    threshold: 0.8
+    num_rejected: 0
+  rejected_reprojection_count: 20
+  rejected_reprojection_samples:
+  - sample_index: 83
+    frame_index: 2018
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0091_frame_002018_auto.png
+    reproj_error: 4.360292591003759
+    threshold: 0.8
+  - sample_index: 85
+    frame_index: 2110
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0093_frame_002110_auto.png
+    reproj_error: 1.2721682390352045
+    threshold: 0.8
+  - sample_index: 89
+    frame_index: 2183
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0097_frame_002183_auto.png
+    reproj_error: 2.566809950383993
+    threshold: 0.8
+  - sample_index: 94
+    frame_index: 2277
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0102_frame_002277_auto.png
+    reproj_error: 2.294095835349182
+    threshold: 0.8
+  - sample_index: 192
+    frame_index: 1438
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0070_frame_001438_auto.png
+    reproj_error: 2.3052973820512612
+    threshold: 0.8
+  - sample_index: 202
+    frame_index: 1640
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0081_frame_001640_auto.png
+    reproj_error: 2.2631076675344812
+    threshold: 0.8
+  - sample_index: 219
+    frame_index: 2022
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0100_frame_002022_auto.png
+    reproj_error: 1.3058149789799796
+    threshold: 0.8
+  - sample_index: 226
+    frame_index: 2172
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0108_frame_002172_auto.png
+    reproj_error: 5.9073194205098485
+    threshold: 0.8
+  - sample_index: 0
+    frame_index: 189
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0001_frame_000189_auto.png
+    reproj_error: 0.935308044613056
+    threshold: 0.8
+  - sample_index: 4
+    frame_index: 265
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0005_frame_000265_auto.png
+    reproj_error: 0.8235064725810333
+    threshold: 0.8
+  - sample_index: 19
+    frame_index: 671
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0023_frame_000671_auto.png
+    reproj_error: 0.8149023043221044
+    threshold: 0.8
+  - sample_index: 23
+    frame_index: 762
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0027_frame_000762_auto.png
+    reproj_error: 0.8892527615307172
+    threshold: 0.8
+  - sample_index: 37
+    frame_index: 1034
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0041_frame_001034_auto.png
+    reproj_error: 0.8282603263496952
+    threshold: 0.8
+  - sample_index: 52
+    frame_index: 1318
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0056_frame_001318_auto.png
+    reproj_error: 1.1133137816782956
+    threshold: 0.8
+  - sample_index: 207
+    frame_index: 1800
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162618/sample_0088_frame_001800_auto.png
+    reproj_error: 0.9355487530948134
+    threshold: 0.8
+  - sample_index: 6
+    frame_index: 301
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0007_frame_000301_auto.png
+    reproj_error: 0.8113072930326054
+    threshold: 0.8
+  - sample_index: 18
+    frame_index: 654
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0022_frame_000654_auto.png
+    reproj_error: 0.8735576539316973
+    threshold: 0.8
+  - sample_index: 25
+    frame_index: 804
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0029_frame_000804_auto.png
+    reproj_error: 0.8101752760414485
+    threshold: 0.8
+  - sample_index: 22
+    frame_index: 744
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0026_frame_000744_auto.png
+    reproj_error: 0.853600043077279
+    threshold: 0.8
+  - sample_index: 27
+    frame_index: 842
+    image_path: /home/ps/RobotCamCalib1/outputs/intrinsics_charuco_samples/0730_162254/sample_0031_frame_000842_auto.png
+    reproj_error: 0.8208282177537974
+    threshold: 0.8
+  final_selected_count: 52
+  cross_validation:
+    enabled: true
+    folds:
+    - fold: 1
+      train_views: 26
+      holdout_views: 26
+      train_rms: 0.4724050157404873
+      holdout_pnp_rmse: 0.5344844702703233
+      holdout_pnp_median: 0.4957342743873596
+      K:
+      - - 1017.204767511963
+        - 0.0
+        - 1330.0341038159424
+      - - 0.0
+        - 1015.740775815671
+        - 968.5306900374342
+      - - 0.0
+        - 0.0
+        - 1.0
+      dist:
+      - -0.0036815063940528886
+      - -0.03961462541516667
+      - -0.0003135947630712186
+      - -0.0005745530903211903
+      - 0.012469285788005857
+    - fold: 2
+      train_views: 26
+      holdout_views: 26
+      train_rms: 0.5178040661135934
+      holdout_pnp_rmse: 0.5063550587236461
+      holdout_pnp_median: 0.47519341111183167
+      K:
+      - - 1018.8204420350755
+        - 0.0
+        - 1329.8873623108116
+      - - 0.0
+        - 1017.6993458507004
+        - 970.4433389643024
+      - - 0.0
+        - 0.0
+        - 1.0
+      dist:
+      - -0.0035196773762971065
+      - -0.04133521358813312
+      - -6.03451733911498e-05
+      - -0.0003373932436081926
+      - 0.01332854471413949
+    fx_range_px: 1.6156745231124887
+    fy_range_px: 1.9585700350294246
+    cx_range_px: 0.14674150513087625
+    cy_range_px: 1.9126489268682008
+    mean_holdout_pnp_rmse: 0.5204197644969847
+  all_view_pnp:
+    evaluated_views: 259
+    valid_errors: 259
+    pnp_rmse: 1.1281782882240363
+    pnp_median: 0.5722154378890991
+    pnp_p90: 1.3160237073898315
+    pnp_max: 5.892968654632568
+  diagnostics:
+    directory: outputs/intrinsics_charuco_offline_eval_0730_162254_0730_162618/intr_calib_charuco_integrated_with_diagnostics_test_diagnostics
+    selection_csv: outputs/intrinsics_charuco_offline_eval_0730_162254_0730_162618/intr_calib_charuco_integrated_with_diagnostics_test_diagnostics/selection_report.csv
+    rejected_blur_preview: outputs/intrinsics_charuco_offline_eval_0730_162254_0730_162618/intr_calib_charuco_integrated_with_diagnostics_test_diagnostics/rejected_blur_contact_sheet.jpg
+    rejected_reprojection_preview: outputs/intrinsics_charuco_offline_eval_0730_162254_0730_162618/intr_calib_charuco_integrated_with_diagnostics_test_diagnostics/rejected_reprojection_contact_sheet.jpg
+    selected_preview: outputs/intrinsics_charuco_offline_eval_0730_162254_0730_162618/intr_calib_charuco_integrated_with_diagnostics_test_diagnostics/selected_contact_sheet.jpg
