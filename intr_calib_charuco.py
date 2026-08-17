@@ -13,6 +13,8 @@ import cv2
 import numpy as np
 import yaml
 
+from robot_cam_calib.config import CalibrationCatalog
+
 
 # ---------------------------- User macros ---------------------------- #
 # supported: "charuco", "charuco_scale0p25", "apriltag_grid"
@@ -37,7 +39,8 @@ CHARUCO_SCALE0P25_CONFIG = (
     "charuco_7x5_scale0p25_square10mm_marker7p5mm_DICT_5X5_50_A4_landscape.yaml"
 )
 
-# Same AprilGrid board used by extr_calib_fingertip_apriltag_grid.py.
+# Default AprilGrid retained for direct script compatibility. Configured tasks
+# should provide ``--target-yaml`` instead.
 APRILTAG_GRID_YAML = Path(
     "/home/ps/RobotCamCalib1/outputs/apriltag_grid_36h10_a4_near_8mm/apriltag_36h10_grid_20x29_ids_579_to_0_tag8mm_gap2mm_margin3mm_a4_near.yaml"
 )
@@ -51,7 +54,7 @@ CHARUCO_MIN_BOARD_BBOX_FRACTION = 0.35
 # Previous CV2 camera defaults. Kept here for reference.
 DEFAULT_CV2_CAMERA_NAME: Optional[str] = None
 DEFAULT_CV2_SOURCE: str = "0"
-DEFAULT_CV2_PORT: Optional[str] = "5-3:1.0"
+DEFAULT_CV2_PORT: Optional[str] = "5-4:1.0"
 DEFAULT_CV2_WIDTH: Optional[int] = 2592
 DEFAULT_CV2_HEIGHT: Optional[int] = 1944
 DEFAULT_CV2_FPS: Optional[int] = 50
@@ -390,12 +393,29 @@ def get_cv2_config(camera_name: Optional[str]) -> dict:
     if camera_name is None:
         return {}
 
-    try:
-        from intr_calib import get_cv2_camera_config
-    except Exception as exc:
-        raise RuntimeError("Could not import CV2 camera configs from intr_calib.py.") from exc
-
-    return get_cv2_camera_config(camera_name)
+    catalog = CalibrationCatalog.load(
+        Path(__file__).resolve().parent / "configs"
+    )
+    camera = catalog.cameras.get(camera_name)
+    if not isinstance(camera, dict):
+        available = ", ".join(catalog.cameras) or "<empty>"
+        raise ValueError(
+            f"Unknown camera_name '{camera_name}'. Available: {available}"
+        )
+    if camera.get("backend") != "opencv":
+        raise ValueError(
+            f"Camera '{camera_name}' uses backend={camera.get('backend')!r}; "
+            "this entry point requires backend='opencv'."
+        )
+    connections = camera["connections"]
+    profiles = camera["profiles"]
+    profile = next(iter(profiles.values()))
+    return {
+        "port": next(iter(connections.values())),
+        "resolution": tuple(profile["resolution"]),
+        "fps": profile["fps"],
+        "fourcc": profile.get("fourcc"),
+    }
 
 
 def create_charuco_board(
@@ -2292,6 +2312,26 @@ def default_output_path(camera_name: str, image_size: tuple[int, int], camera_mo
 
 
 def run_interactive_calibration(args: argparse.Namespace) -> str:
+    global APRILTAG_GRID_YAML, CALIBRATION_TARGET, CAMERA_MODEL, SAMPLE_IMAGE_ROOT
+    CALIBRATION_TARGET = str(
+        getattr(args, "target", CALIBRATION_TARGET)
+    )
+    CAMERA_MODEL = str(
+        getattr(args, "camera_model", CAMERA_MODEL)
+    ).lower()
+    target_yaml = getattr(args, "target_yaml", None)
+    if target_yaml is not None:
+        APRILTAG_GRID_YAML = Path(target_yaml)
+    sample_root = getattr(args, "sample_root", None)
+    if sample_root is not None:
+        SAMPLE_IMAGE_ROOT = Path(sample_root)
+    elif CALIBRATION_TARGET == "apriltag_grid":
+        SAMPLE_IMAGE_ROOT = Path("outputs/intrinsics_apriltag_grid_samples")
+    elif CALIBRATION_TARGET == "charuco_scale0p25":
+        SAMPLE_IMAGE_ROOT = Path("outputs/intrinsics_charuco_scale0p25_samples")
+    else:
+        SAMPLE_IMAGE_ROOT = Path("outputs/intrinsics_charuco_samples")
+
     if CAMERA_MODEL not in {"pinhole", "fisheye"}:
         raise ValueError(f"Unsupported CAMERA_MODEL={CAMERA_MODEL}; use 'pinhole' or 'fisheye'.")
 
@@ -2305,6 +2345,8 @@ def run_interactive_calibration(args: argparse.Namespace) -> str:
         args.fourcc = args.fourcc if args.fourcc is not None else config.get("fourcc")
     if args.port is not None:
         src = str(args.port)
+    elif not config and DEFAULT_CV2_PORT is not None:
+        src = str(DEFAULT_CV2_PORT)
 
     if is_charuco_target():
         board, dictionary = create_charuco_board(
@@ -2354,7 +2396,7 @@ def run_interactive_calibration(args: argparse.Namespace) -> str:
     print(f"[INFO] CV2 source: requested={src}, resolved={resolved_src}, width={args.width}, height={args.height}, fps={args.fps}, fourcc={args.fourcc}")
     print(f"[INFO] Sample images will be cached under {sample_image_dir}")
     print(f"[INFO] Auto-save valid images: {AUTO_SAVE_VALID_IMAGES}, cooldown={AUTO_SAVE_COOLDOWN_S}s")
-    print(f"[INFO] Store samples manually with 's'. Press 'q' to calibrate and save.")
+    print("[INFO] Store samples manually with 's'. Press 'q' to calibrate and save.")
 
     window_name = args.window_name
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL | cv2.WINDOW_GUI_EXPANDED)
@@ -2643,14 +2685,36 @@ def build_arg_parser() -> argparse.ArgumentParser:
         description="Interactive CV2 ChArUco intrinsics calibration."
     )
     parser.add_argument("--src", default=DEFAULT_CV2_SOURCE, help="CV2 source index, /dev/videoX, or USB port id.")
-    parser.add_argument("--port", default=DEFAULT_CV2_PORT, help="USB port id such as 3-10.1:1.0; overrides --src and the port in --camera-name.")
-    parser.add_argument("--camera-name", default=DEFAULT_CV2_CAMERA_NAME, help="Use CV2_CAMERA_CONFIGS entry from intr_calib.py.")
+    parser.add_argument("--port", default=None, help="USB port id such as 3-10.1:1.0; overrides --src and the port in --camera-name.")
+    parser.add_argument("--camera-name", default=DEFAULT_CV2_CAMERA_NAME, help="Use an OpenCV camera entry from configs/cameras.yaml.")
     parser.add_argument("--output-name", default=DEFAULT_OUTPUT_NAME, help="Name used in default output path when --camera-name is not set.")
     parser.add_argument("--width", type=int, default=DEFAULT_CV2_WIDTH)
     parser.add_argument("--height", type=int, default=DEFAULT_CV2_HEIGHT)
     parser.add_argument("--fps", type=int, default=DEFAULT_CV2_FPS)
     parser.add_argument("--fourcc", default=DEFAULT_CV2_FOURCC)
     parser.add_argument("--output", default=None)
+    parser.add_argument(
+        "--camera-model",
+        choices=("pinhole", "fisheye"),
+        default=CAMERA_MODEL,
+    )
+    parser.add_argument(
+        "--target",
+        choices=("charuco", "charuco_scale0p25", "apriltag_grid"),
+        default=CALIBRATION_TARGET,
+    )
+    parser.add_argument(
+        "--target-yaml",
+        type=Path,
+        default=None,
+        help="AprilTag-grid YAML; used when --target=apriltag_grid.",
+    )
+    parser.add_argument(
+        "--sample-root",
+        type=Path,
+        default=None,
+        help="Override the directory used for captured calibration images.",
+    )
     parser.add_argument("--no-timestamp", dest="timestamp", action="store_false")
     parser.set_defaults(timestamp=True)
 

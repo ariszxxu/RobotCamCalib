@@ -96,6 +96,23 @@ def resolve_camera_entries(extrinsics: dict[str, Any]) -> list[dict[str, Any]]:
     inputs = extrinsics.get("inputs", {})
     entries: list[dict[str, Any]] = []
 
+    solution = extrinsics.get("solution")
+    if isinstance(solution, dict):
+        for camera_name in ("middle_finger_cam", "thumb_web_cam"):
+            transform_key = f"T_cube_{camera_name}"
+            if transform_key in solution:
+                return [
+                    {
+                        "name": camera_name,
+                        "transform": load_transform(
+                            solution, transform_key
+                        ),
+                        "intrinsics_yaml": inputs.get(
+                            f"{camera_name.removesuffix('_cam')}_intrinsics_yaml"
+                        ),
+                    }
+                ]
+
     camera_names = inputs.get("camera_names")
     if isinstance(camera_names, list):
         for camera_name in camera_names:
@@ -274,23 +291,32 @@ def build_scene(
         line_width=2.0,
     )
 
-    baseline = float(np.linalg.norm(camera_positions[0] - camera_positions[1]))
-    baseline_name = f"{camera_names[0]}-{camera_names[1]}"
-    label_handles.append(
-        server.scene.add_label(
-            name="/labels/baseline",
-            text=f"{baseline_name} baseline: {baseline * 1000.0:.1f} mm",
-            position=(0.0, -axis_length * 0.9, axis_length * 0.65),
-            font_size_mode="scene",
-            font_scene_height=axis_length * 0.16,
-            visible=LABELS_VISIBLE_BY_DEFAULT,
+    baseline_name: str | None = None
+    baseline: float | None = None
+    if len(camera_positions) >= 2:
+        baseline = float(
+            np.linalg.norm(camera_positions[0] - camera_positions[1])
         )
-    )
+        baseline_name = f"{camera_names[0]}-{camera_names[1]}"
+        label_handles.append(
+            server.scene.add_label(
+                name="/labels/baseline",
+                text=(
+                    f"{baseline_name} baseline: "
+                    f"{baseline * 1000.0:.1f} mm"
+                ),
+                position=(0.0, -axis_length * 0.9, axis_length * 0.65),
+                font_size_mode="scene",
+                font_scene_height=axis_length * 0.16,
+                visible=LABELS_VISIBLE_BY_DEFAULT,
+            )
+        )
 
-    print("Loaded fingertip extrinsics in Q / AprilCube frame")
+    print("Loaded camera extrinsics in Q / AprilCube frame")
     for camera_name, camera_position in zip(camera_names, camera_positions):
         print(f"  Q_T_{camera_name} translation: {camera_position.tolist()} m")
-    print(f"  {baseline_name} baseline: {baseline * 1000.0:.2f} mm")
+    if baseline_name is not None and baseline is not None:
+        print(f"  {baseline_name} baseline: {baseline * 1000.0:.2f} mm")
     for camera_name, fov, aspect in camera_model_info:
         print(f"  {camera_name} frustum fov/aspect: {np.degrees(fov):.1f} deg / {aspect:.3f}")
     print(f"  labels visible by default: {LABELS_VISIBLE_BY_DEFAULT}")

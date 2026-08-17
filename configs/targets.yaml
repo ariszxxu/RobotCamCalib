@@ -1,0 +1,38 @@
+version: 1
+targets:
+  charuco_a4_40mm:
+    kind: charuco
+    description: 7x5 ChArUco, 40 mm squares and 30 mm markers.
+    physical_id: charuco_a4_40mm_print_A
+    config: outputs/charuco_a4_0712_223646/charuco_7x5_40mm_marker30mm_DICT_5X5_50_A4_landscape_600dpi.yaml
+    squares_x: 7
+    squares_y: 5
+    square_length_m: 0.04
+    marker_length_m: 0.03
+    dictionary: DICT_5X5_50
+
+  hand_back_aprilcube_62p5mm:
+    kind: aprilcube
+    description: AprilCube attached to the hand-back or camera assembly.
+    physical_id: hand_back_aprilcube_62p5mm_A
+    config: /home/ps/project/ConSensV2Lab/thirdparty/aprilcube/cubes/cube_april_36h11_100_123_2x2x2_outer62p5mm/config.json
+    outer_size_m: [0.0625, 0.0625, 0.0625]
+    family: tag36h11
+
+  tiny_grid_50mm_third_view:
+    kind: apriltag_grid
+    description: 3x3 tag36h11 grid mounted on the third-view camera.
+    physical_id: tiny_grid_50mm_print_third_view_A
+    mounted_to: third_view_cam
+    config: outputs/tiny_physical_optics_frame_offset/tiny_physical_optics_frame_offset.yaml
+    outer_size_m: [0.05, 0.05]
+    family: DICT_APRILTAG_36h11
+
+  tiny_grid_50mm_thumb_web:
+    kind: apriltag_grid
+    description: 3x3 tag36h11 grid mounted on the thumb-web camera.
+    physical_id: tiny_grid_50mm_print_thumb_web_A
+    mounted_to: thumb_web_cam
+    config: outputs/tiny_physical_optics_frame_offset/tiny_physical_optics_frame_offset.yaml
+    outer_size_m: [0.05, 0.05]
+    family: DICT_APRILTAG_36h11

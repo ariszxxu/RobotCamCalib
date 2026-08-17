@@ -1,13 +1,12 @@
-pupil-apriltags
-loguru
-scipy
-opencv-contrib-python
 numpy
-pyyaml
+opencv-contrib-python
+PyYAML
+scipy
 matplotlib
+Pillow
 viser
-yourdfpy
-pybullet
-av
 pyudev
-termcolor
+reportlab
+
+# G305 acquisition additionally uses pyorbbecsdk from the fingereye_policy
+# environment / Orbbec SDK installation.

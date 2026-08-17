@@ -1,0 +1,211 @@
+version: 1
+tasks:
+  third_view_intrinsics_charuco:
+    kind: intrinsics
+    description: Calibrate the third-view pinhole profile with the A4 ChArUco board.
+    runner: intr_calib_charuco.py
+    cameras: [third_view_cam]
+    targets: [charuco_a4_40mm]
+    arguments:
+      - --port
+      - ${cameras.third_view_cam.connections.calibration_rig}
+      - --width
+      - ${cameras.third_view_cam.profiles.full_50fps.resolution.0}
+      - --height
+      - ${cameras.third_view_cam.profiles.full_50fps.resolution.1}
+      - --fps
+      - ${cameras.third_view_cam.profiles.full_50fps.fps}
+      - --fourcc
+      - ${cameras.third_view_cam.profiles.full_50fps.fourcc}
+      - --camera-model
+      - ${cameras.third_view_cam.profiles.full_50fps.camera_model}
+      - --target
+      - charuco
+      - --squares-x
+      - ${targets.charuco_a4_40mm.squares_x}
+      - --squares-y
+      - ${targets.charuco_a4_40mm.squares_y}
+      - --square-length
+      - ${targets.charuco_a4_40mm.square_length_m}
+      - --marker-length
+      - ${targets.charuco_a4_40mm.marker_length_m}
+      - --dictionary
+      - ${targets.charuco_a4_40mm.dictionary}
+      - --output-name
+      - third_view_cam
+      - --output
+      - outputs/intrinsics/third_view_cam/full_50fps/intrinsics.yaml
+      - --sample-root
+      - outputs/intrinsics/third_view_cam/full_50fps/samples
+
+  thumb_web_intrinsics_charuco:
+    kind: intrinsics
+    description: Calibrate the thumb-web fisheye profile with the A4 ChArUco board.
+    runner: intr_calib_charuco.py
+    cameras: [thumb_web_cam]
+    targets: [charuco_a4_40mm]
+    arguments:
+      - --port
+      - ${cameras.thumb_web_cam.connections.cube_charuco_rig}
+      - --width
+      - ${cameras.thumb_web_cam.profiles.full_50fps.resolution.0}
+      - --height
+      - ${cameras.thumb_web_cam.profiles.full_50fps.resolution.1}
+      - --fps
+      - ${cameras.thumb_web_cam.profiles.full_50fps.fps}
+      - --fourcc
+      - ${cameras.thumb_web_cam.profiles.full_50fps.fourcc}
+      - --camera-model
+      - ${cameras.thumb_web_cam.profiles.full_50fps.camera_model}
+      - --target
+      - charuco
+      - --squares-x
+      - ${targets.charuco_a4_40mm.squares_x}
+      - --squares-y
+      - ${targets.charuco_a4_40mm.squares_y}
+      - --square-length
+      - ${targets.charuco_a4_40mm.square_length_m}
+      - --marker-length
+      - ${targets.charuco_a4_40mm.marker_length_m}
+      - --dictionary
+      - ${targets.charuco_a4_40mm.dictionary}
+      - --output-name
+      - thumb_web_cam
+      - --output
+      - outputs/intrinsics/thumb_web_cam/full_50fps/intrinsics.yaml
+      - --sample-root
+      - outputs/intrinsics/thumb_web_cam/full_50fps/samples
+
+  middle_finger_intrinsics_charuco:
+    kind: intrinsics
+    description: Calibrate the middle-finger pinhole camera with the A4 ChArUco board.
+    runner: intr_calib_charuco.py
+    cameras: [middle_finger_cam]
+    targets: [charuco_a4_40mm]
+    arguments:
+      - --port
+      - ${cameras.middle_finger_cam.connections.hand_back_rig}
+      - --width
+      - ${cameras.middle_finger_cam.profiles.full_50fps.resolution.0}
+      - --height
+      - ${cameras.middle_finger_cam.profiles.full_50fps.resolution.1}
+      - --fps
+      - ${cameras.middle_finger_cam.profiles.full_50fps.fps}
+      - --fourcc
+      - ${cameras.middle_finger_cam.profiles.full_50fps.fourcc}
+      - --camera-model
+      - ${cameras.middle_finger_cam.profiles.full_50fps.camera_model}
+      - --target
+      - charuco
+      - --squares-x
+      - ${targets.charuco_a4_40mm.squares_x}
+      - --squares-y
+      - ${targets.charuco_a4_40mm.squares_y}
+      - --square-length
+      - ${targets.charuco_a4_40mm.square_length_m}
+      - --marker-length
+      - ${targets.charuco_a4_40mm.marker_length_m}
+      - --dictionary
+      - ${targets.charuco_a4_40mm.dictionary}
+      - --output-name
+      - middle_finger_cam
+      - --output
+      - outputs/intrinsics/middle_finger_cam/full_50fps/intrinsics.yaml
+      - --sample-root
+      - outputs/intrinsics/middle_finger_cam/full_50fps/samples
+
+  thumb_web_cube_charuco_extrinsics:
+    kind: paired_target_extrinsics
+    description: Estimate the thumb-web camera pose in the AprilCube frame.
+    runner: extr_calib_d435_cube_cv2_apriltag_grid.py
+    cameras: [third_view_cam, thumb_web_cam]
+    targets: [hand_back_aprilcube_62p5mm, charuco_a4_40mm]
+    arguments:
+      - --third-view-port
+      - ${cameras.third_view_cam.connections.calibration_rig}
+      - --thumb-web-port
+      - ${cameras.thumb_web_cam.connections.cube_charuco_rig}
+      - --third-view-intrinsics
+      - ${cameras.third_view_cam.profiles.full_50fps.intrinsics}
+      - --thumb-web-intrinsics
+      - ${cameras.thumb_web_cam.profiles.full_50fps.intrinsics}
+      - --aprilcube-config
+      - ${targets.hand_back_aprilcube_62p5mm.config}
+      - --charuco-board
+      - ${targets.charuco_a4_40mm.config}
+      - --output
+      - outputs/extrinsics/thumb_web_cube_charuco/extrinsics.yaml
+      - --sample-root
+      - outputs/extrinsics/thumb_web_cube_charuco/samples
+
+  dual_grid_mount_offsets:
+    kind: mutual_grid_extrinsics
+    description: Solve both camera-to-grid mounting offsets by mutual observation.
+    runner: calibrate_dual_camera_rigid_apriltag_grids.py
+    cameras: [third_view_cam, thumb_web_cam]
+    targets: [tiny_grid_50mm_third_view, tiny_grid_50mm_thumb_web]
+    arguments:
+      - --third-view-port
+      - ${cameras.third_view_cam.connections.calibration_rig}
+      - --thumb-web-port
+      - ${cameras.thumb_web_cam.connections.dual_grid_rig}
+      - --third-view-intrinsics
+      - ${cameras.third_view_cam.profiles.full_50fps.intrinsics}
+      - --thumb-web-intrinsics
+      - ${cameras.thumb_web_cam.profiles.full_50fps.intrinsics}
+      - --grid-yaml
+      - ${targets.tiny_grid_50mm_third_view.config}
+      - --output-root
+      - outputs/extrinsics/dual_grid_mount_offsets
+
+  g305_hand_back_extrinsics:
+    kind: paired_target_extrinsics
+    description: Estimate the G305 raw-left optical frame in the hand-back cube frame.
+    runner: calibrate_g305_left_hand_back_palm.py
+    cameras: [third_view_cam, g305_raw_left_rgb]
+    targets: [hand_back_aprilcube_62p5mm, charuco_a4_40mm]
+    arguments:
+      - --third-view-port
+      - ${cameras.third_view_cam.connections.hand_back_rig}
+      - --third-view-fps
+      - ${cameras.third_view_cam.profiles.full_20fps.fps}
+      - --third-view-intrinsics
+      - ${cameras.third_view_cam.profiles.full_20fps.intrinsics}
+      - --g305-serial
+      - ${cameras.g305_raw_left_rgb.serial}
+      - --aprilcube-config
+      - ${targets.hand_back_aprilcube_62p5mm.config}
+      - --charuco-board
+      - ${targets.charuco_a4_40mm.config}
+      - --output
+      - outputs/extrinsics/g305_hand_back/extrinsics.yaml
+      - --sample-root
+      - outputs/extrinsics/g305_hand_back/samples
+
+  middle_finger_hand_back_extrinsics:
+    kind: paired_target_extrinsics
+    description: Estimate the middle-finger camera optical frame in the hand-back cube frame.
+    runner: calibrate_middle_finger_hand_back_cube.py
+    cameras: [third_view_cam, middle_finger_cam]
+    targets: [hand_back_aprilcube_62p5mm, charuco_a4_40mm]
+    arguments:
+      - --third-view-port
+      - ${cameras.third_view_cam.connections.hand_back_rig}
+      - --third-view-fps
+      - ${cameras.third_view_cam.profiles.full_20fps.fps}
+      - --third-view-intrinsics
+      - ${cameras.third_view_cam.profiles.full_20fps.intrinsics}
+      - --middle-finger-port
+      - ${cameras.middle_finger_cam.connections.hand_back_rig}
+      - --middle-finger-fps
+      - ${cameras.middle_finger_cam.profiles.full_50fps.fps}
+      - --middle-finger-intrinsics
+      - ${cameras.middle_finger_cam.profiles.full_50fps.intrinsics}
+      - --aprilcube-config
+      - ${targets.hand_back_aprilcube_62p5mm.config}
+      - --charuco-board
+      - ${targets.charuco_a4_40mm.config}
+      - --output
+      - outputs/extrinsics/middle_finger_hand_back/extrinsics.yaml
+      - --sample-root
+      - outputs/extrinsics/middle_finger_hand_back/samples

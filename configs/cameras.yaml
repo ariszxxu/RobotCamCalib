@@ -1,0 +1,63 @@
+version: 1
+cameras:
+  third_view_cam:
+    backend: opencv
+    description: Fixed third-view UVC camera.
+    connections:
+      calibration_rig: "3-6:1.0"
+      hand_back_rig: "7-4:1.0"
+    profiles:
+      full_50fps:
+        resolution: [2592, 1944]
+        fps: 50
+        fourcc: MJPG
+        camera_model: pinhole
+        intrinsics: outputs/intrinsics_charuco_offline_eval_0721_235144/intrinsics_None_charuco_2592x1944_0721_235457_offline_object_release.yaml
+      full_20fps:
+        resolution: [2592, 1944]
+        fps: 20
+        fourcc: MJPG
+        camera_model: pinhole
+        intrinsics: outputs/intrinsics_charuco_offline_eval_0721_235144/intrinsics_None_charuco_2592x1944_0721_235457_offline_object_release.yaml
+
+  thumb_web_cam:
+    backend: opencv
+    description: Fisheye camera mounted near the thumb web.
+    connections:
+      cube_charuco_rig: "3-10:1.0"
+      dual_grid_rig: "3-8:1.0"
+    profiles:
+      full_50fps:
+        resolution: [2592, 1944]
+        fps: 50
+        fourcc: MJPG
+        camera_model: fisheye
+        intrinsics: outputs/intrinsics_thumb_web_cam_fisheye_charuco_2592x1944_0708_020331.yaml
+
+  middle_finger_cam:
+    backend: opencv
+    description: Pinhole UVC camera mounted on the middle finger.
+    connections:
+      hand_back_rig: "5-4:1.0"
+    profiles:
+      full_50fps:
+        resolution: [2592, 1944]
+        fps: 50
+        fourcc: MJPG
+        camera_model: pinhole
+        intrinsics: outputs/intrinsics_None_charuco_2592x1944_0801_185224.yaml
+
+  g305_raw_left_rgb:
+    backend: orbbec
+    description: G305 original unrectified left RGB stream.
+    serial: CV27561000NC
+    work_mode: Dual Color Streams
+    connections:
+      sdk: runtime_sdk
+    profiles:
+      raw_left_20fps:
+        resolution: [1280, 800]
+        fps: 20
+        format: RGB
+        camera_model: pinhole
+        intrinsics: runtime
