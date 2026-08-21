@@ -209,3 +209,40 @@ tasks:
       - outputs/extrinsics/middle_finger_hand_back/extrinsics.yaml
       - --sample-root
       - outputs/extrinsics/middle_finger_hand_back/samples
+
+  xarm7_g305_eye_in_hand:
+    kind: robot_hand_eye
+    description: Estimate link7_T_wuji_g305_raw_left_optical from read-only xArm7 qpos and a fixed ChArUco board.
+    runner: calibrate_xarm7_g305_eye_in_hand.py
+    robots: [xarm7]
+    cameras: [g305_raw_left_rgb]
+    targets: [charuco_a4_40mm]
+    arguments:
+      - --robot-ip
+      - ${robots.xarm7.connection.ip}
+      - --g305-serial
+      - ${cameras.g305_raw_left_rgb.serial}
+      - --g305-work-mode
+      - ${cameras.g305_raw_left_rgb.work_mode}
+      - --g305-width
+      - ${cameras.g305_raw_left_rgb.profiles.raw_left_20fps.resolution.0}
+      - --g305-height
+      - ${cameras.g305_raw_left_rgb.profiles.raw_left_20fps.resolution.1}
+      - --g305-fps
+      - ${cameras.g305_raw_left_rgb.profiles.raw_left_20fps.fps}
+      - --g305-format
+      - ${cameras.g305_raw_left_rgb.profiles.raw_left_20fps.format}
+      - --charuco-board
+      - ${targets.charuco_a4_40mm.config}
+      - --samples
+      - "30"
+      - --stable-seconds
+      - "0.5"
+      - --stable-joint-range-deg
+      - "0.12"
+      - --rearm-joint-delta-deg
+      - "2.0"
+      - --output
+      - outputs/extrinsics/xarm7_g305_eye_in_hand/extrinsics.yaml
+      - --sample-root
+      - outputs/extrinsics/xarm7_g305_eye_in_hand/samples

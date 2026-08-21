@@ -1,0 +1,26 @@
+schema: robot_cam_calib.charuco_board.v1
+target_type: charuco
+name: charuco_7x5_40mm_marker30mm_DICT_5X5_50
+physical_id: charuco_a4_40mm_print_A
+units: m
+charuco:
+  squares_x: 7
+  squares_y: 5
+  square_length: 0.04
+  marker_length: 0.03
+  dictionary: DICT_5X5_50
+  legacy_pattern: false
+print:
+  filename: charuco_7x5_40mm_marker30mm_DICT_5X5_50_A4_landscape_600dpi
+  paper: A4 landscape
+  dpi: 600
+  scale: 1.0
+target_frame:
+  name: charuco
+  origin: outer corner preceding the first square in OpenCV CharucoBoard coordinates
+  x_axis: along increasing printed square column
+  y_axis: along increasing printed square row
+  z_axis: right-handed normal to the board plane
+notes:
+  - Verify one 40 mm square in both printed directions before calibration.
+  - Do not compensate non-uniform printer scaling by changing one scalar size.

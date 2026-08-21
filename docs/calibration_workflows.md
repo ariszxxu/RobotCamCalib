@@ -14,8 +14,10 @@ profile，并分别标定内参；同一份 PDF 打印出的两块板也是两�
 
 仓库当前使用：
 
+- `configs/robots.yaml`：机器人身份、连接及位姿读取 profile。
 - `configs/cameras.yaml`：相机身份和采集 profile。
 - `configs/targets.yaml`：标定板几何、字典和配置文件。
+- `assets/targets/`：可复用且受版本控制的实体标定板几何 preset。
 - `configs/tasks.yaml`：把相机和标定板组合成可运行任务。
 - `robot_cam_calib/`：与设备无关的公共几何、同步采集和文件工具。
 - 根目录脚本：保留兼容的命令行入口。
@@ -159,6 +161,28 @@ USB 端口变化通常不改变内参，只修改 `connections`；应优先用�
 外参结果必须明确使用 `T_A_B` 约定：它把 B 坐标表达映射到 A。禁止仅写 `extrinsic`
 而不写方向。每个 task 还应记录：参与的内参文件、标定板物理 ID、采集 profile、时间同步
 方式、样本索引、离群点、残差和雅可比秩/条件数。
+
+### xArm7 + G305 eye-in-hand
+
+`xarm7_g305_eye_in_hand` 只读取 xArm7 qpos，并调用控制器 FK 得到
+`T_base_link7`；它不调用任何机器人 `set_*` 或运动接口。因为控制器 FK 会包含 TCP
+offset，任务要求 TCP offset 为零。xArm7 URDF 中 `link7 -> link_eef` 为恒等变换，
+所以此时 FK 末端帧就是所需 `link7`。
+
+固定板假设下，每个样本满足：
+
+```text
+T_base_link7_i
+@ T_link7_wuji_g305_raw_left_optical
+@ T_wuji_g305_raw_left_optical_charuco_i
+= T_base_charuco
+```
+
+程序连续只读 qpos，检测到机械臂稳定 0.5 秒后自动采样。一次采样完成后，至少一个
+关节相对上次采样移动 2° 才重新布防；自动触发时还会再次读取一组 qpos 验证相机帧
+与机械臂姿态没有错配。采集必须保存原始 qpos，而不能只保存控制器显示的 TCP 位姿。
+求解结果需要同时检查板在 base 中的旋转/平移残差、方法间结果、奇偶子集稳定性和
+相对旋转激励秩。旋转激励秩低于 3 时，不应把候选 YAML 晋升为正式标定。
 
 ## 推荐质量门槛
 

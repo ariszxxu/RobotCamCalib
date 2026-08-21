@@ -4,12 +4,20 @@ targets:
     kind: charuco
     description: 7x5 ChArUco, 40 mm squares and 30 mm markers.
     physical_id: charuco_a4_40mm_print_A
-    config: outputs/charuco_a4_0712_223646/charuco_7x5_40mm_marker30mm_DICT_5X5_50_A4_landscape_600dpi.yaml
+    config: assets/targets/charuco/charuco_7x5_40mm_marker30mm_DICT_5X5_50.yaml
     squares_x: 7
     squares_y: 5
     square_length_m: 0.04
     marker_length_m: 0.03
     dictionary: DICT_5X5_50
+
+  compact_apriltag_grid_4x4_tag48mm:
+    kind: apriltag_grid
+    description: A3 4x4 tag36h11 grid with 48 mm tags.
+    physical_id: compact_apriltag_grid_4x4_tag48mm_print_A
+    config: assets/apriltag_grid/compact_apriltag_grid_4x4_tag48mm.yaml
+    outer_size_m: [0.20869565217391303, 0.20869565217391303]
+    family: tag36h11
 
   hand_back_aprilcube_62p5mm:
     kind: aprilcube

@@ -1,0 +1,15 @@
+version: 1
+robots:
+  xarm7:
+    backend: xarm-python-sdk
+    description: xArm7 read-only joint-state source for hand-eye calibration.
+    model: xarm7
+    axis_count: 7
+    connection:
+      ip: 192.168.2.213
+    profiles:
+      link7_qpos_readonly:
+        qpos_units: rad
+        fk_output_frame: link7
+        require_tcp_offset_zero: true
+        allow_motion_commands: false

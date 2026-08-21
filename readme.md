@@ -4,18 +4,21 @@
 
 ## 环境
 
-本仓库使用 Conda 环境 `fingereye_policy`：
+本机使用 Conda 环境 `fingereye`：
 
 ```bash
-conda activate fingereye_policy
+conda activate fingereye
 pip install -r requirements.txt
 python calibctl.py validate --check-files
 ```
 
-G305 采集依赖环境中的 Orbbec SDK / `pyorbbecsdk`；AprilCube 检测还依赖 `configs/targets.yaml` 中配置的外部 AprilCube 工程。`reportlab` 仅用于重新生成 50 mm AprilTag Grid PDF。
+G305 采集依赖该环境中的 Orbbec SDK / `pyorbbecsdk`；xArm7 手眼标定还使用
+`xarm-python-sdk`。AprilCube 检测依赖 `configs/targets.yaml` 中配置的外部
+AprilCube 工程。`reportlab` 仅用于重新生成 50 mm AprilTag Grid PDF。
 
 ## 配置方式
 
+- `configs/robots.yaml`：机器人身份、地址及只读位姿 profile。
 - `configs/cameras.yaml`：物理相机、连接方式及采集 profile。分辨率、裁剪、ISP/矫正模式、镜头焦距或相机模型变化时，应新增 profile 并重新标定内参。
 - `configs/targets.yaml`：ChArUco、AprilTag Grid、AprilCube 的几何和配置文件。不同实体打印件应使用不同 ID。
 - `configs/tasks.yaml`：把相机 profile、标定板和标定脚本组合成可重复运行的任务。
@@ -43,6 +46,47 @@ python calibctl.py run dual_grid_mount_offsets -- --max-samples 60
 | `dual_grid_mount_offsets` | 两台相机各带一块 AprilTag Grid，利用相互观测求两个安装偏移 |
 | `g305_hand_back_extrinsics` | 求手背 AprilCube 坐标系到 G305 原始左 RGB 光学坐标系的外参 |
 | `middle_finger_hand_back_extrinsics` | 求手背 AprilCube 坐标系到中指相机光学坐标系的外参 |
+| `xarm7_g305_eye_in_hand` | 只读 xArm7 qpos，求 `link7_T_wuji_g305_raw_left_optical` |
+
+## xArm7 + G305 眼在手上标定
+
+物理布置：G305 刚性固定在 `link7`，ChArUco 板相对 xArm 基座保持不动。
+程序不会移动机械臂；操作者在 xArm 网页中移动机械臂。检测到 qpos 连续稳定
+0.5 秒、标定板检测合格后，程序自动保存一组；成功采样后需要再次明显移动机械臂
+才会重新布防，避免同一姿态重复采样。建议采集 30 组，覆盖多个位置并绕至少两个、
+最好三个旋转轴改变姿态。
+
+先做配置和硬件检查：
+
+```bash
+/home/CNF2025915223/miniconda3/envs/fingereye/bin/python \
+  calibctl.py run xarm7_g305_eye_in_hand -- --check-config
+
+/home/CNF2025915223/miniconda3/envs/fingereye/bin/python \
+  calibctl.py run xarm7_g305_eye_in_hand -- --check-hardware
+```
+
+正式采集：
+
+```bash
+/home/CNF2025915223/miniconda3/envs/fingereye/bin/python \
+  calibctl.py run xarm7_g305_eye_in_hand
+```
+
+默认自动采样阈值为稳定 0.5 秒、关节稳定范围 0.12°，采样后至少移动 2° 才重新
+布防。`s` 可手动补采，`q` 或 `Esc` 提前求解。少于 12 组时只保存 manifest，
+不输出候选外参。程序临时切换 G305 到 `Dual Color Streams`，并在退出时恢复原工作
+模式。每组样本保存原始左目图、7D qpos、`T_base_link7`、
+`T_wuji_g305_raw_left_optical_charuco` 和重投影误差。输出采用 `T_A_B` 约定，
+字段名为 `T_link7_wuji_g305_raw_left_optical`。
+
+中断后可从 manifest 重新求解而不连接硬件：
+
+```bash
+/home/CNF2025915223/miniconda3/envs/fingereye/bin/python \
+  calibctl.py run xarm7_g305_eye_in_hand -- \
+  --offline-manifest /absolute/path/to/capture_manifest.yaml
+```
 
 ## 保留脚本及职责
 
@@ -54,6 +98,7 @@ python calibctl.py run dual_grid_mount_offsets -- --max-samples 60
 | `calibrate_dual_camera_rigid_apriltag_grids.py` | 双相机、双刚性 AprilTag Grid 的闭环安装外参求解 |
 | `calibrate_g305_left_hand_back_palm.py` | 第三视角相机 + Orbbec G305 的手背外参采集与鲁棒求解 |
 | `calibrate_middle_finger_hand_back_cube.py` | 第三视角相机 + 中指相机的手背外参采集与鲁棒求解 |
+| `calibrate_xarm7_g305_eye_in_hand.py` | 只读 xArm7 qpos 的 G305 eye-in-hand 采集、求解和诊断 |
 | `generate_tiny_physical_optics_frame_offset.py` | 生成 50 mm、3x3 AprilTag Grid 的 PDF、纹理和几何 YAML |
 | `recompute_extrinsics_filtered.py` | 从已保存样本中排除指定索引，重新计算成对目标外参 |
 | `visualize_extr_fingertip.py` | 在 Viser 中查看通用相机/指尖外参坐标关系 |

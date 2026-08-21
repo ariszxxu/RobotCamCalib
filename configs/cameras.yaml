@@ -49,8 +49,8 @@ cameras:
 
   g305_raw_left_rgb:
     backend: orbbec
-    description: G305 original unrectified left RGB stream.
-    serial: CV27561000NC
+    description: Wuji-mounted G305 original unrectified left optical RGB stream.
+    serial: CV2T661000NC
     work_mode: Dual Color Streams
     connections:
       sdk: runtime_sdk

@@ -1,4 +1,4 @@
-"""Load and validate the repository's camera, target, and task catalogs."""
+"""Load and validate the repository's robot, camera, target, and task catalogs."""
 
 from __future__ import annotations
 
@@ -12,11 +12,13 @@ import yaml
 
 
 CATALOG_FILES = {
+    "robots": "robots.yaml",
     "cameras": "cameras.yaml",
     "targets": "targets.yaml",
     "tasks": "tasks.yaml",
 }
 VALID_CAMERA_BACKENDS = {"opencv", "realsense", "orbbec", "pyav"}
+VALID_ROBOT_BACKENDS = {"xarm-python-sdk"}
 VALID_TARGET_KINDS = {
     "checkerboard",
     "charuco",
@@ -72,6 +74,7 @@ def _lookup(data: dict[str, Any], dotted_key: str) -> Any:
 class CalibrationCatalog:
     repo_root: Path
     config_dir: Path
+    robots: dict[str, Any]
     cameras: dict[str, Any]
     targets: dict[str, Any]
     tasks: dict[str, Any]
@@ -91,6 +94,7 @@ class CalibrationCatalog:
     def context(self) -> dict[str, Any]:
         return {
             "repo_root": str(self.repo_root),
+            "robots": self.robots,
             "cameras": self.cameras,
             "targets": self.targets,
             "tasks": self.tasks,
@@ -126,6 +130,22 @@ class CalibrationCatalog:
 
     def validate(self, *, check_files: bool) -> list[str]:
         warnings: list[str] = []
+        for name, robot in self.robots.items():
+            if not isinstance(robot, dict):
+                raise CatalogError(f"Robot '{name}' must be a mapping")
+            if robot.get("backend") not in VALID_ROBOT_BACKENDS:
+                raise CatalogError(
+                    f"Robot '{name}' has unsupported backend "
+                    f"{robot.get('backend')!r}"
+                )
+            if int(robot.get("axis_count", 0)) <= 0:
+                raise CatalogError(f"Robot '{name}' has invalid axis_count")
+            connection = robot.get("connection")
+            if not isinstance(connection, dict) or not connection.get("ip"):
+                raise CatalogError(f"Robot '{name}' must define connection.ip")
+            profiles = robot.get("profiles")
+            if not isinstance(profiles, dict) or not profiles:
+                raise CatalogError(f"Robot '{name}' must define profiles")
         for name, camera in self.cameras.items():
             if not isinstance(camera, dict):
                 raise CatalogError(f"Camera '{name}' must be a mapping")
@@ -200,6 +220,7 @@ class CalibrationCatalog:
                 raise CatalogError(
                     f"Task '{name}' has unsupported kind {task.get('kind')!r}"
                 )
+            self._validate_references(name, task.get("robots", []), self.robots)
             self._validate_references(name, task.get("cameras", []), self.cameras)
             self._validate_references(name, task.get("targets", []), self.targets)
             command = self.build_command(name)

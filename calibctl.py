@@ -34,13 +34,15 @@ def build_parser() -> argparse.ArgumentParser:
     list_parser = subparsers.add_parser("list", help="list catalog entries")
     list_parser.add_argument(
         "kind",
-        choices=("all", "cameras", "targets", "tasks"),
+        choices=("all", "robots", "cameras", "targets", "tasks"),
         default="all",
         nargs="?",
     )
 
     show_parser = subparsers.add_parser("show", help="show one catalog entry")
-    show_parser.add_argument("kind", choices=("cameras", "targets", "tasks"))
+    show_parser.add_argument(
+        "kind", choices=("robots", "cameras", "targets", "tasks")
+    )
     show_parser.add_argument("name")
 
     validate_parser = subparsers.add_parser(
@@ -68,6 +70,7 @@ def main() -> None:
     try:
         catalog = CalibrationCatalog.load(args.config_dir)
         registries = {
+            "robots": catalog.robots,
             "cameras": catalog.cameras,
             "targets": catalog.targets,
             "tasks": catalog.tasks,
