@@ -1,0 +1,24 @@
+target_type: charuco
+name: charuco_7x5_40mm_marker30mm_DICT_5X5_50
+source_pdf: outputs/charuco_a4_0712_223646/charuco_7x5_40mm_marker30mm_DICT_5X5_50_A4_landscape_600dpi.pdf
+charuco:
+  squares_x: 7
+  squares_y: 5
+  square_length: 0.04
+  marker_length: 0.03
+  dictionary: DICT_5X5_50
+  legacy_pattern: false
+physical_dimensions:
+  board_width_m: 0.28
+  board_height_m: 0.20
+  board_width_mm: 280.0
+  board_height_mm: 200.0
+print:
+  paper: A4
+  orientation: landscape
+  page_width_mm: 297.0
+  page_height_mm: 210.0
+  board_centered: true
+  raster_dpi: 600
+  print_scale_percent: 100
+  scaling_instruction: Print at 100% / Actual Size; disable Fit to Page.
