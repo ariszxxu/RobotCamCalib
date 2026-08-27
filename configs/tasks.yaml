@@ -237,12 +237,91 @@ tasks:
       - --samples
       - "30"
       - --stable-seconds
-      - "0.5"
+      - "1.0"
       - --stable-joint-range-deg
-      - "0.12"
+      - "0.02"
       - --rearm-joint-delta-deg
       - "2.0"
+      - --capture-burst-frames
+      - "5"
+      - --max-reprojection-error
+      - "1.0"
       - --output
       - outputs/extrinsics/xarm7_g305_eye_in_hand/extrinsics.yaml
       - --sample-root
       - outputs/extrinsics/xarm7_g305_eye_in_hand/samples
+
+  wuji_g305_fingertip_extrinsics:
+    kind: robot_kinematic_extrinsics
+    description: Jointly estimate the palm-to-G305 and index-link4-to-index-cube constants.
+    runner: calibrate_wuji_g305_fingertip.py
+    cameras: [g305_raw_left_rgb]
+    targets: [index_fingertip_aprilcube_18p75mm]
+    arguments:
+      - --urdf
+      - /home/CNF2025915223/桌面/FingerEyeV2/assets/thirdparty/xarm7_wuji_left_description/wuji_left_w_fingereye.urdf
+      - --tip-link
+      - left_finger2_link4
+      - --cube-config
+      - ${targets.index_fingertip_aprilcube_18p75mm.config}
+      - --cube-mesh
+      - /home/CNF2025915223/桌面/FingerEyeV2/assets/thirdparty/xarm7_wuji_left_description/fingereye_mesh/index_wuji_w_cube.stl
+      - --target-frame
+      - index_wuji_w_cube_update
+      - --g305-serial
+      - ${cameras.g305_raw_left_rgb.serial}
+      - --g305-work-mode
+      - ${cameras.g305_raw_left_rgb.work_mode}
+      - --g305-width
+      - ${cameras.g305_raw_left_rgb.profiles.raw_left_20fps.resolution.0}
+      - --g305-height
+      - ${cameras.g305_raw_left_rgb.profiles.raw_left_20fps.resolution.1}
+      - --g305-fps
+      - ${cameras.g305_raw_left_rgb.profiles.raw_left_20fps.fps}
+      - --g305-format
+      - ${cameras.g305_raw_left_rgb.profiles.raw_left_20fps.format}
+      - --samples
+      - "20"
+      - --output
+      - outputs/extrinsics/wuji_g305_fingertip/extrinsics.yaml
+      - --sample-root
+      - outputs/extrinsics/wuji_g305_fingertip/samples
+
+  wuji_g305_thumb_fingertip_extrinsics:
+    kind: robot_kinematic_extrinsics
+    description: Annotate thumb-link4-to-thumb-mesh using the known palm-to-G305 constant.
+    runner: calibrate_wuji_g305_fingertip.py
+    cameras: [g305_raw_left_rgb]
+    targets: [thumb_fingertip_aprilcube_18p75mm]
+    arguments:
+      - --urdf
+      - /home/CNF2025915223/桌面/FingerEyeV2/assets/thirdparty/xarm7_wuji_left_description/wuji_left_w_fingereye.urdf
+      - --tip-link
+      - left_finger1_link4
+      - --cube-config
+      - ${targets.thumb_fingertip_aprilcube_18p75mm.config}
+      - --cube-mesh
+      - /home/CNF2025915223/桌面/FingerEyeV2/assets/thirdparty/xarm7_wuji_left_description/fingereye_mesh/thumb.obj
+      - --target-frame
+      - thumb_fingertip_mesh_frame
+      - --stationary-annotation
+      - --known-palm-camera-yaml
+      - outputs/extrinsics/wuji_g305_fingertip/extrinsics_0824_010826.yaml
+      - --g305-serial
+      - ${cameras.g305_raw_left_rgb.serial}
+      - --g305-work-mode
+      - ${cameras.g305_raw_left_rgb.work_mode}
+      - --g305-width
+      - ${cameras.g305_raw_left_rgb.profiles.raw_left_20fps.resolution.0}
+      - --g305-height
+      - ${cameras.g305_raw_left_rgb.profiles.raw_left_20fps.resolution.1}
+      - --g305-fps
+      - ${cameras.g305_raw_left_rgb.profiles.raw_left_20fps.fps}
+      - --g305-format
+      - ${cameras.g305_raw_left_rgb.profiles.raw_left_20fps.format}
+      - --samples
+      - "30"
+      - --output
+      - outputs/extrinsics/wuji_g305_thumb_fingertip/extrinsics.yaml
+      - --sample-root
+      - outputs/extrinsics/wuji_g305_thumb_fingertip/samples

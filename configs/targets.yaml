@@ -27,6 +27,22 @@ targets:
     outer_size_m: [0.0625, 0.0625, 0.0625]
     family: tag36h11
 
+  index_fingertip_aprilcube_18p75mm:
+    kind: aprilcube
+    description: 18.75 mm AprilCube with IDs 6-11 mounted in the index_wuji_w_cube_update mesh frame.
+    physical_id: index_fingertip_aprilcube_ids_6_11_A
+    config: /home/CNF2025915223/桌面/FingerEyeV2/assets/cubes/cube_april_36h11_6_11_1x1x1_15mm/config.json
+    outer_size_m: [0.01875, 0.01875, 0.01875]
+    family: tag36h11
+
+  thumb_fingertip_aprilcube_18p75mm:
+    kind: aprilcube
+    description: 18.75 mm AprilCube with IDs 12-17 defining the thumb fingertip mesh frame.
+    physical_id: thumb_fingertip_aprilcube_ids_12_17_A
+    config: /home/CNF2025915223/桌面/FingerEyeV2/assets/cubes/cube_april_36h11_12_17_1x1x1_15mm/config.json
+    outer_size_m: [0.01875, 0.01875, 0.01875]
+    family: tag36h11
+
   tiny_grid_50mm_third_view:
     kind: apriltag_grid
     description: 3x3 tag36h11 grid mounted on the third-view camera.

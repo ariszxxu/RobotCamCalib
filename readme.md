@@ -47,6 +47,7 @@ python calibctl.py run dual_grid_mount_offsets -- --max-samples 60
 | `g305_hand_back_extrinsics` | 求手背 AprilCube 坐标系到 G305 原始左 RGB 光学坐标系的外参 |
 | `middle_finger_hand_back_extrinsics` | 求手背 AprilCube 坐标系到中指相机光学坐标系的外参 |
 | `xarm7_g305_eye_in_hand` | 只读 xArm7 qpos，求 `link7_T_wuji_g305_raw_left_optical` |
+| `wuji_g305_fingertip_extrinsics` | 用 WujiHand URDF、G305 与指尖 AprilCube 联合求掌部相机和指尖标靶两个安装外参 |
 
 ## xArm7 + G305 眼在手上标定
 
@@ -73,7 +74,7 @@ python calibctl.py run dual_grid_mount_offsets -- --max-samples 60
   calibctl.py run xarm7_g305_eye_in_hand
 ```
 
-默认自动采样阈值为稳定 0.5 秒、关节稳定范围 0.12°，采样后至少移动 2° 才重新
+默认自动采样阈值为稳定 1.0 秒、同步 burst 关节稳定范围 0.02°，采样后至少移动 2° 才重新
 布防。`s` 可手动补采，`q` 或 `Esc` 提前求解。少于 12 组时只保存 manifest，
 不输出候选外参。程序临时切换 G305 到 `Dual Color Streams`，并在退出时恢复原工作
 模式。每组样本保存原始左目图、7D qpos、`T_base_link7`、
@@ -87,6 +88,53 @@ python calibctl.py run dual_grid_mount_offsets -- --max-samples 60
   calibctl.py run xarm7_g305_eye_in_hand -- \
   --offline-manifest /absolute/path/to/capture_manifest.yaml
 ```
+
+## WujiHand + G305 指尖双外参标定
+
+每个样本使用 Wuji 实测 `qpos20` 从指定 URDF 计算
+`T_left_palm_link_left_finger2_link4(q)`，并从 G305 原始左目检测 IDs 6–11 的
+AprilCube。联合方程为：
+
+```text
+T_left_palm_link_left_finger2_link4(q_i)
+@ T_left_finger2_link4_index_wuji_w_cube_update
+= T_left_palm_link_wuji_g305_raw_left_optical
+@ T_wuji_g305_raw_left_optical_index_wuji_w_cube_update_i
+```
+
+先做只读检查；检查成功后必须显式加 `--execute-motion` 才会移动 WujiHand：
+
+```bash
+/home/CNF2025915223/miniconda3/envs/fingereye/bin/python \
+  calibctl.py run wuji_g305_fingertip_extrinsics -- --check-config
+
+/home/CNF2025915223/miniconda3/envs/fingereye/bin/python \
+  calibctl.py run wuji_g305_fingertip_extrinsics -- --check-hardware
+
+/home/CNF2025915223/miniconda3/envs/fingereye/bin/python \
+  calibctl.py run wuji_g305_fingertip_extrinsics -- --execute-motion
+```
+
+所有目标先经过 FingerEyeV2 现有的实时硬件/回放限位、保守自碰撞检查、分段路点、
+新鲜反馈和关闭电机清理。每个接受样本保存原始图、标注图、qpos20、URDF FK、PnP
+位姿和时间戳；无效检测另存到 `rejected/`。退出时默认回到初始 qpos8。
+
+当前 URDF 的标准语义是 `finger1=thumb`、`finger2=index`；实动探测确认 IDs 6–11
+的实体 AprilCube 属于 `left_finger2_link4`。其 frame 与
+`fingereye_mesh/index_wuji_w_cube.stl` 的源 frame 重合。
+
+Thumb mesh 标注使用 IDs 12–17 的 18.75 mm AprilCube；其 frame 与
+`fingereye_mesh/thumb.obj` 的源 frame 重合。已有 palm-to-G305 外参时可在不移动
+WujiHand 的情况下连续采集并鲁棒平均：
+
+```bash
+/home/CNF2025915223/miniconda3/envs/fingereye/bin/python \
+  calibctl.py run wuji_g305_thumb_fingertip_extrinsics
+```
+
+输出字段为
+`T_left_finger1_link4_thumb_fingertip_mesh_frame`，并保存每帧图像、qpos20、
+单帧候选变换和离群点诊断。
 
 ## 保留脚本及职责
 
@@ -104,6 +152,7 @@ python calibctl.py run dual_grid_mount_offsets -- --max-samples 60
 | `visualize_extr_fingertip.py` | 在 Viser 中查看通用相机/指尖外参坐标关系 |
 | `visualize_dual_camera_grid_offsets.py` | 为双 Grid 外参生成坐标系、视锥和安装偏移示意图 |
 | `visualize_g305_hand_back_extrinsic.py` | 在 Viser 中查看手背到 G305 的外参 |
+| `visualize_wuji_calibrated_frames.py` | 用 floating-joint Wuji URDF 同时查看 palm-to-G305 与 link4-to-fingertip-mesh 标定 frame |
 
 详细的新增相机、标定板选择、内外参流程、坐标约定和质量门槛见 [`docs/calibration_workflows.md`](docs/calibration_workflows.md)。
 

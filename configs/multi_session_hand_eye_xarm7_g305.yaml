@@ -1,0 +1,54 @@
+version: 1
+
+# Adapter from this task's capture/result YAMLs into the generic hand-eye
+# relation A_i X C_i = B_session.  A different rig can use a different adapter
+# without changing solver code.
+input:
+  allowed_schemas:
+    - robot_cam_calib.xarm7_g305_hand_eye_capture.v1
+    - robot_cam_calib.xarm7_g305_eye_in_hand.v1
+  samples_path: samples
+  source_extrinsic_path: T_link7_wuji_g305_raw_left_optical
+  sample_fields:
+    index: index
+    image_path: image_path
+    base_gripper_transform: T_base_link7
+    camera_target_transform: T_wuji_g305_raw_left_optical_charuco
+    reprojection_error_px: reprojection_error_px
+  consistency_paths:
+    - metadata.camera.serial
+    - metadata.camera.K
+    - metadata.camera.dist
+    - metadata.target.squares_x
+    - metadata.target.squares_y
+    - metadata.target.square_length
+    - metadata.target.marker_length
+    - metadata.target.dictionary
+
+image_quality:
+  enabled: true
+  intrinsics_K_path: metadata.camera.K
+  distortion_path: metadata.camera.dist
+  camera_model: pinhole
+  target_size_m: [0.28, 0.20]
+  canonical_size_px: [700, 500]
+  max_reprojection_error_px: 1.0
+  robust_z_limit: -2.5
+  max_reject_fraction: 0.10
+  fail_on_image_error: true
+
+solver:
+  min_samples_per_session: 12
+  rotation_scale_deg: 0.25
+  translation_scale_mm: 2.0
+  cross_validation_folds: 5
+  random_seed: 20260827
+
+output:
+  schema: robot_cam_calib.generic_multi_session_hand_eye.v1
+  transform_key: T_link7_wuji_g305_raw_left_optical
+  session_target_transform_key: T_base_charuco
+  conventions:
+    transform: T_A_B maps B-frame points into A
+    output: T_link7_wuji_g305_raw_left_optical
+    equation_per_session: T_base_link7_i @ T_link7_wuji_g305_raw_left_optical @ T_wuji_g305_raw_left_optical_charuco_i = T_base_charuco_session

@@ -3,10 +3,11 @@
 
 The G305 is rigidly mounted on xArm7 link7 and observes one stationary
 ChArUco board.  The operator moves the robot using the xArm web UI.  Once the
-robot has remained still for 0.5 seconds, the program automatically captures
-one sample and waits for a deliberate move before re-arming.  Each accepted
-sample stores the raw-left image, the seven measured joint angles, controller
-forward kinematics ``base_T_link7``, and PnP ``camera_T_charuco``.
+robot has remained still for 1.0 second, the program captures a short burst.
+Every new frame is bracketed by encoder reads; the sharpest valid frame is
+paired with interpolated exposure-time qpos before FK. The program then waits
+for a deliberate move before re-arming. Each accepted sample stores the image,
+paired joint angles, ``base_T_link7``, and PnP ``camera_T_charuco``.
 
 No xArm ``set_*`` or motion API is called.  The selected G305 work mode is
 temporarily enabled and restored on exit.
@@ -36,6 +37,10 @@ from robot_cam_calib.hand_eye import (
     HandEyeObservation,
     solve_hand_eye_robust,
 )
+from robot_cam_calib.image_quality import (
+    PlanarTargetQualityConfig,
+    planar_target_sharpness,
+)
 from robot_cam_calib.io import append_timestamp, atomic_yaml_dump
 
 
@@ -51,15 +56,16 @@ DEFAULT_SAMPLE_ROOT = REPO_ROOT / (
     "outputs/extrinsics/xarm7_g305_eye_in_hand/samples"
 )
 MIN_SAMPLES = 12
-MAX_REPROJECTION_ERROR_PX = 2.0
+MAX_REPROJECTION_ERROR_PX = 1.0
 MIN_POSE_ROTATION_DELTA_DEG = 3.0
 MIN_POSE_TRANSLATION_DELTA_M = 0.010
 QPOS_STABILITY_READS = 5
 QPOS_STABILITY_INTERVAL_S = 0.04
-QPOS_STABILITY_MAX_DEG = 0.12
-AUTO_STABLE_SECONDS = 0.5
+QPOS_STABILITY_MAX_DEG = 0.02
+AUTO_STABLE_SECONDS = 1.0
 AUTO_REARM_JOINT_DELTA_DEG = 2.0
 COMPLETE_FRAME_ATTEMPTS = 20
+CAPTURE_BURST_FRAMES = 5
 
 
 @dataclass(frozen=True)
@@ -84,6 +90,22 @@ def max_joint_delta_deg(first: np.ndarray, second: np.ndarray) -> float:
     """Return the largest wrap-safe absolute joint delta in degrees."""
     delta = np.arctan2(np.sin(first - second), np.cos(first - second))
     return float(np.degrees(np.max(np.abs(delta))))
+
+
+def circular_interpolate_qpos(
+    first: np.ndarray, second: np.ndarray, alpha: float
+) -> np.ndarray:
+    """Wrap-safe interpolation of two encoder vectors at ``alpha`` in [0, 1]."""
+
+    before = np.asarray(first, dtype=np.float64)
+    after = np.asarray(second, dtype=np.float64)
+    wrapped_delta = np.arctan2(np.sin(after - before), np.cos(after - before))
+    interpolated = before + float(alpha) * wrapped_delta
+    return np.arctan2(np.sin(interpolated), np.cos(interpolated))
+
+
+def circular_midpoint_qpos(first: np.ndarray, second: np.ndarray) -> np.ndarray:
+    return circular_interpolate_qpos(first, second, 0.5)
 
 
 class StabilityGate:
@@ -157,6 +179,18 @@ class CapturedSample:
     robot_state: int
     robot_mode: int
     max_joint_range_deg: float
+    image_sharpness: float = float("nan")
+    burst_frame_count: int = 1
+    burst_valid_count: int = 1
+    frame_qpos_pair_delta_deg: float = float("nan")
+    burst_joint_range_deg: float = float("nan")
+    qpos_before_frame_rad: Optional[np.ndarray] = None
+    qpos_after_frame_rad: Optional[np.ndarray] = None
+    qpos_before_monotonic_ns: Optional[int] = None
+    qpos_after_monotonic_ns: Optional[int] = None
+    qpos_before_system_ns: Optional[int] = None
+    qpos_after_system_ns: Optional[int] = None
+    qpos_interpolation_alpha: float = float("nan")
 
     def observation(self) -> HandEyeObservation:
         return HandEyeObservation(
@@ -164,6 +198,131 @@ class CapturedSample:
             T_base_gripper=self.T_base_link7,
             T_camera_target=self.T_camera_charuco,
         )
+
+
+@dataclass(frozen=True)
+class CaptureFrameCandidate:
+    frame: np.ndarray
+    detection: Any
+    device_timestamp_ms: Optional[float]
+    system_timestamp_us: Optional[int]
+    sharpness: float
+    qpos_rad: np.ndarray
+    qpos_before_frame_rad: np.ndarray
+    qpos_after_frame_rad: np.ndarray
+    qpos_before_monotonic_ns: int
+    qpos_after_monotonic_ns: int
+    qpos_before_system_ns: int
+    qpos_after_system_ns: int
+    qpos_interpolation_alpha: float
+    frame_qpos_pair_delta_deg: float
+
+
+def select_best_capture_candidate(
+    candidates: list[CaptureFrameCandidate],
+) -> CaptureFrameCandidate:
+    """Prefer target ROI sharpness, using reprojection error as a tie-breaker."""
+
+    if not candidates:
+        raise ValueError("No valid capture frame candidates")
+    return max(
+        candidates,
+        key=lambda item: (
+            float(item.sharpness),
+            -float(item.detection.reproj_error),
+        ),
+    )
+
+
+def collect_capture_burst(
+    camera: G305RawLeftCamera,
+    robot: "ReadOnlyXArm7",
+    trigger_qpos_rad: np.ndarray,
+    detector: Any,
+    board: Any,
+    intrinsics: Any,
+    quality_config: PlanarTargetQualityConfig,
+    *,
+    frame_count: int,
+    max_reprojection_error_px: float,
+    max_joint_range_deg: float,
+) -> tuple[CaptureFrameCandidate, int, float]:
+    """Bracket every new frame with qpos reads and select a synced sharp frame."""
+
+    valid: list[CaptureFrameCandidate] = []
+    all_qpos = [np.asarray(trigger_qpos_rad, dtype=np.float64)]
+    for _index in range(frame_count):
+        qpos_before = robot.read_qpos_once()
+        before_ns = time.monotonic_ns()
+        before_system_ns = time.time_ns()
+        frame, device_timestamp, system_timestamp = read_complete_left_frame(camera)
+        qpos_after = robot.read_qpos_once()
+        after_ns = time.monotonic_ns()
+        after_system_ns = time.time_ns()
+        all_qpos.extend([qpos_before, qpos_after])
+        detection = detect_charuco_pose(
+            frame,
+            detector,
+            board,
+            intrinsics,
+            "G305 raw-left/ChArUco",
+        )
+        if (
+            not detection.ok
+            or detection.T is None
+            or not np.isfinite(detection.reproj_error)
+            or detection.reproj_error > max_reprojection_error_px
+        ):
+            continue
+        try:
+            sharpness = planar_target_sharpness(
+                frame,
+                detection.T,
+                intrinsics.K,
+                intrinsics.dist,
+                quality_config,
+                camera_model=intrinsics.camera_model,
+            )
+        except (ValueError, cv2.error):
+            continue
+        pair_delta = max_joint_delta_deg(qpos_before, qpos_after)
+        alpha = 0.5
+        if system_timestamp is not None and after_system_ns > before_system_ns:
+            frame_system_ns = int(system_timestamp) * 1000
+            raw_alpha = (frame_system_ns - before_system_ns) / (
+                after_system_ns - before_system_ns
+            )
+            if raw_alpha < -0.1 or raw_alpha > 1.1:
+                continue
+            alpha = float(np.clip(raw_alpha, 0.0, 1.0))
+        paired_qpos = circular_interpolate_qpos(qpos_before, qpos_after, alpha)
+        valid.append(
+            CaptureFrameCandidate(
+                frame=frame,
+                detection=detection,
+                device_timestamp_ms=device_timestamp,
+                system_timestamp_us=system_timestamp,
+                sharpness=sharpness,
+                qpos_rad=paired_qpos,
+                qpos_before_frame_rad=qpos_before,
+                qpos_after_frame_rad=qpos_after,
+                qpos_before_monotonic_ns=before_ns,
+                qpos_after_monotonic_ns=after_ns,
+                qpos_before_system_ns=before_system_ns,
+                qpos_after_system_ns=after_system_ns,
+                qpos_interpolation_alpha=alpha,
+                frame_qpos_pair_delta_deg=pair_delta,
+            )
+        )
+    burst_range = max(
+        max_joint_delta_deg(all_qpos[0], reading) for reading in all_qpos[1:]
+    )
+    if burst_range > max_joint_range_deg:
+        raise RuntimeError(
+            f"robot moved during synchronized burst: {burst_range:.4f} deg > "
+            f"{max_joint_range_deg:.4f} deg"
+        )
+    return select_best_capture_candidate(valid), len(valid), burst_range
 
 
 def sdk_pose_to_transform(pose: list[float]) -> np.ndarray:
@@ -230,6 +389,16 @@ class ReadOnlyXArm7:
                 f"> {max_joint_range_deg:.3f} deg"
             )
         qpos = np.median(stacked, axis=0)
+        return self.measure_at_qpos(qpos, max_range_deg)
+
+    def measure_at_qpos(
+        self, qpos_rad: np.ndarray, observed_joint_range_deg: float
+    ) -> RobotMeasurement:
+        """Run FK for qpos paired with one camera frame; perform no new reads."""
+
+        if self.arm is None:
+            raise RuntimeError("xArm connection is not open")
+        qpos = np.asarray(qpos_rad, dtype=np.float64).reshape(7)
         code, pose = self.arm.get_forward_kinematics(
             qpos.tolist(),
             input_is_radian=True,
@@ -247,7 +416,7 @@ class ReadOnlyXArm7:
             T_base_link7=sdk_pose_to_transform(pose),
             state=int(state),
             mode=int(self.arm.mode),
-            max_joint_range_deg=max_range_deg,
+            max_joint_range_deg=float(observed_joint_range_deg),
         )
 
 
@@ -282,6 +451,26 @@ def sample_record(sample: CapturedSample) -> dict[str, Any]:
         "robot_state": sample.robot_state,
         "robot_mode": sample.robot_mode,
         "max_joint_range_deg": sample.max_joint_range_deg,
+        "image_sharpness": sample.image_sharpness,
+        "burst_frame_count": sample.burst_frame_count,
+        "burst_valid_count": sample.burst_valid_count,
+        "frame_qpos_pair_delta_deg": sample.frame_qpos_pair_delta_deg,
+        "burst_joint_range_deg": sample.burst_joint_range_deg,
+        "qpos_before_frame_rad": (
+            None
+            if sample.qpos_before_frame_rad is None
+            else sample.qpos_before_frame_rad.tolist()
+        ),
+        "qpos_after_frame_rad": (
+            None
+            if sample.qpos_after_frame_rad is None
+            else sample.qpos_after_frame_rad.tolist()
+        ),
+        "qpos_before_monotonic_ns": sample.qpos_before_monotonic_ns,
+        "qpos_after_monotonic_ns": sample.qpos_after_monotonic_ns,
+        "qpos_before_system_ns": sample.qpos_before_system_ns,
+        "qpos_after_system_ns": sample.qpos_after_system_ns,
+        "qpos_interpolation_alpha": sample.qpos_interpolation_alpha,
     }
 
 
@@ -340,6 +529,36 @@ def load_manifest(path: Path) -> tuple[list[CapturedSample], dict[str, Any]]:
                 robot_state=int(record.get("robot_state", -1)),
                 robot_mode=int(record.get("robot_mode", -1)),
                 max_joint_range_deg=float(record.get("max_joint_range_deg", 0.0)),
+                image_sharpness=float(record.get("image_sharpness", "nan")),
+                burst_frame_count=int(record.get("burst_frame_count", 1)),
+                burst_valid_count=int(record.get("burst_valid_count", 1)),
+                frame_qpos_pair_delta_deg=float(
+                    record.get("frame_qpos_pair_delta_deg", "nan")
+                ),
+                burst_joint_range_deg=float(
+                    record.get("burst_joint_range_deg", "nan")
+                ),
+                qpos_before_frame_rad=(
+                    None
+                    if record.get("qpos_before_frame_rad") is None
+                    else np.asarray(
+                        record["qpos_before_frame_rad"], dtype=np.float64
+                    )
+                ),
+                qpos_after_frame_rad=(
+                    None
+                    if record.get("qpos_after_frame_rad") is None
+                    else np.asarray(
+                        record["qpos_after_frame_rad"], dtype=np.float64
+                    )
+                ),
+                qpos_before_monotonic_ns=record.get("qpos_before_monotonic_ns"),
+                qpos_after_monotonic_ns=record.get("qpos_after_monotonic_ns"),
+                qpos_before_system_ns=record.get("qpos_before_system_ns"),
+                qpos_after_system_ns=record.get("qpos_after_system_ns"),
+                qpos_interpolation_alpha=float(
+                    record.get("qpos_interpolation_alpha", "nan")
+                ),
             )
         )
     return samples, dict(payload.get("metadata", {}))
@@ -514,8 +733,21 @@ def live_capture(args: argparse.Namespace) -> None:
             "stable_seconds": args.stable_seconds,
             "stable_joint_range_deg": args.stable_joint_range_deg,
             "rearm_joint_delta_deg": args.rearm_joint_delta_deg,
+            "burst_frames": args.capture_burst_frames,
+            "selection": "maximum canonical target ROI sharpness, then minimum reprojection error",
+            "synchronization": (
+                "each burst frame bracketed by qpos reads; FK uses circular "
+                "qpos interpolation at the selected frame system timestamp"
+            ),
+            "max_reprojection_error_px": args.max_reprojection_error,
             "manual_key": "s",
         }
+        quality_config = PlanarTargetQualityConfig(
+            width_m=float(board_config["squares_x"])
+            * float(board_config["square_length"]),
+            height_m=float(board_config["squares_y"])
+            * float(board_config["square_length"]),
+        )
         write_manifest(manifest, samples, metadata)
         print(
             "[INFO] Robot is read-only. Move it in the xArm web UI; after "
@@ -595,30 +827,32 @@ def live_capture(args: argparse.Namespace) -> None:
                     f"{args.stable_seconds:.2f}s"
                 )
                 continue
-            if not detection.ok or detection.T is None:
-                if manual_requested:
-                    print(f"[REJECT] {detection.message}")
-                continue
-            if detection.reproj_error > args.max_reprojection_error:
-                if manual_requested:
-                    print(
-                        f"[REJECT] reprojection {detection.reproj_error:.3f}px > "
-                        f"{args.max_reprojection_error:.3f}px"
-                    )
-                continue
             try:
-                measurement = robot.measure_stationary(
-                    args.stable_joint_range_deg
+                selected, burst_valid_count, burst_joint_range = collect_capture_burst(
+                    camera,
+                    robot,
+                    qpos,
+                    detector,
+                    board,
+                    intrinsics,
+                    quality_config,
+                    frame_count=args.capture_burst_frames,
+                    max_reprojection_error_px=args.max_reprojection_error,
+                    max_joint_range_deg=args.stable_joint_range_deg,
+                )
+            except (ValueError, RuntimeError) as exc:
+                print(f"[REJECT] capture burst has no usable sharp frame: {exc}")
+                continue
+            frame = selected.frame
+            detection = selected.detection
+            device_timestamp = selected.device_timestamp_ms
+            system_timestamp = selected.system_timestamp_us
+            try:
+                measurement = robot.measure_at_qpos(
+                    selected.qpos_rad, burst_joint_range
                 )
             except RuntimeError as exc:
                 print(f"[REJECT] {exc}")
-                continue
-            trigger_delta = max_joint_delta_deg(measurement.qpos_rad, qpos)
-            if trigger_delta > args.stable_joint_range_deg:
-                print(
-                    f"[REJECT] Robot moved {trigger_delta:.3f} deg during "
-                    "capture verification"
-                )
                 continue
             diverse, diversity_message = is_diverse(
                 samples, measurement.T_base_link7
@@ -645,6 +879,18 @@ def live_capture(args: argparse.Namespace) -> None:
                 robot_state=measurement.state,
                 robot_mode=measurement.mode,
                 max_joint_range_deg=measurement.max_joint_range_deg,
+                image_sharpness=selected.sharpness,
+                burst_frame_count=args.capture_burst_frames,
+                burst_valid_count=burst_valid_count,
+                frame_qpos_pair_delta_deg=selected.frame_qpos_pair_delta_deg,
+                burst_joint_range_deg=burst_joint_range,
+                qpos_before_frame_rad=selected.qpos_before_frame_rad,
+                qpos_after_frame_rad=selected.qpos_after_frame_rad,
+                qpos_before_monotonic_ns=selected.qpos_before_monotonic_ns,
+                qpos_after_monotonic_ns=selected.qpos_after_monotonic_ns,
+                qpos_before_system_ns=selected.qpos_before_system_ns,
+                qpos_after_system_ns=selected.qpos_after_system_ns,
+                qpos_interpolation_alpha=selected.qpos_interpolation_alpha,
             )
             samples.append(sample)
             gate.mark_captured(measurement.qpos_rad)
@@ -652,7 +898,11 @@ def live_capture(args: argparse.Namespace) -> None:
             print(
                 f"[ACCEPT] sample={index} corners={detection.n_points} "
                 f"err={detection.reproj_error:.3f}px "
-                f"stable={measurement.max_joint_range_deg:.3f}deg "
+                f"sharpness={selected.sharpness:.1f} "
+                f"burst={burst_valid_count}/{args.capture_burst_frames} "
+                f"pair={selected.frame_qpos_pair_delta_deg:.4f}deg "
+                f"burst_range={burst_joint_range:.4f}deg "
+                f"alpha={selected.qpos_interpolation_alpha:.2f} "
                 f"{diversity_message}"
             )
             if len(samples) >= args.samples:
@@ -757,7 +1007,14 @@ def run_self_test() -> None:
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--robot-ip", default="192.168.2.213")
-    parser.add_argument("--g305-serial", default="CV2T661000NC")
+    parser.add_argument(
+        "--g305-serial",
+        default="auto",
+        help=(
+            "G305 serial override; default 'auto' freshly enumerates hardware "
+            "and requires exactly one connected Orbbec Gemini 305"
+        ),
+    )
     parser.add_argument("--g305-work-mode", default="Dual Color Streams")
     parser.add_argument("--g305-width", type=int, default=1280)
     parser.add_argument("--g305-height", type=int, default=800)
@@ -785,6 +1042,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
         type=float,
         default=MAX_REPROJECTION_ERROR_PX,
     )
+    parser.add_argument(
+        "--capture-burst-frames",
+        type=int,
+        default=CAPTURE_BURST_FRAMES,
+        help=(
+            "stationary frames to inspect per accepted pose; the sharpest "
+            "valid canonical target ROI is saved"
+        ),
+    )
     parser.add_argument("--sample-root", type=Path, default=DEFAULT_SAMPLE_ROOT)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument(
@@ -811,6 +1077,10 @@ def main() -> None:
             "--rearm-joint-delta-deg must be greater than "
             "--stable-joint-range-deg"
         )
+    if args.capture_burst_frames < 1:
+        raise SystemExit("--capture-burst-frames must be >= 1")
+    if args.max_reprojection_error <= 0:
+        raise SystemExit("--max-reprojection-error must be > 0")
     board, _detector, config = load_charuco_target(args.charuco_board)
     del board
     if args.self_test:

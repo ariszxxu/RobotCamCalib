@@ -93,7 +93,8 @@ THIRD_VIEW_FPS = 20
 THIRD_VIEW_FOURCC = "MJPG"
 
 G305_CAMERA_NAME = "g305_raw_left_rgb"
-G305_SERIAL = "CV27561000NC"
+G305_AUTO_SERIAL = "auto"
+CAPTURED_G305_SERIAL_20260730 = "CV27561000NC"
 G305_WORK_MODE = "Dual Color Streams"
 G305_WIDTH = 1280
 G305_HEIGHT = 800
@@ -312,7 +313,7 @@ class G305RawLeftCamera:
 
     def __init__(
         self,
-        serial: str,
+        serial: Optional[str],
         width: int,
         height: int,
         fps: int,
@@ -320,7 +321,7 @@ class G305RawLeftCamera:
         work_mode: str,
         timeout_ms: int,
     ) -> None:
-        self.serial = serial
+        self.serial = "" if serial is None else str(serial).strip()
         self.width = width
         self.height = height
         self.fps = fps
@@ -334,6 +335,73 @@ class G305RawLeftCamera:
         self.started = False
         self.previous_mode = ""
         self.profile_info: Optional[G305ProfileInfo] = None
+
+    @staticmethod
+    def _device_field(devices: Any, method: str, index: int) -> str:
+        getter = getattr(devices, method, None)
+        if not callable(getter):
+            return ""
+        try:
+            value = getter(index)
+        except Exception:
+            return ""
+        return "" if value is None else str(value)
+
+    def _select_connected_device(self, devices: Any) -> tuple[Any, str]:
+        """Resolve one freshly enumerated G305, optionally by explicit serial."""
+
+        records: list[tuple[int, str, str, str]] = []
+        for index in range(int(devices.get_count())):
+            records.append(
+                (
+                    index,
+                    self._device_field(
+                        devices, "get_device_name_by_index", index
+                    ),
+                    self._device_field(
+                        devices, "get_device_serial_number_by_index", index
+                    ),
+                    self._device_field(
+                        devices,
+                        "get_device_connection_type_by_index",
+                        index,
+                    ),
+                )
+            )
+        available = ", ".join(
+            f"{name or 'unknown'} serial={serial or 'unknown'} "
+            f"connection={connection or 'unknown'}"
+            for _index, name, serial, connection in records
+        ) or "none"
+        explicit_serial = self.serial.lower() not in {"", G305_AUTO_SERIAL}
+        if explicit_serial:
+            matches = [record for record in records if record[2] == self.serial]
+            if len(matches) != 1:
+                raise RuntimeError(
+                    f"Requested G305 serial {self.serial!r} is not connected; "
+                    f"freshly enumerated devices: {available}"
+                )
+            selected_serial = matches[0][2]
+        else:
+            candidates = [
+                record
+                for record in records
+                if "gemini 305" in record[1].lower() and record[2]
+            ]
+            if len(candidates) != 1:
+                raise RuntimeError(
+                    "G305 automatic selection requires exactly one connected "
+                    "Orbbec Gemini 305; "
+                    f"found {len(candidates)} candidates; devices: {available}. "
+                    "Connect only the intended G305 or pass --g305-serial."
+                )
+            _index, name, selected_serial, connection = candidates[0]
+            print(
+                f"[G305] auto-selected {name} serial={selected_serial} "
+                f"connection={connection or 'unknown'}",
+                flush=True,
+            )
+        return devices.get_device_by_serial_number(selected_serial), selected_serial
 
     @staticmethod
     def _select_profile(
@@ -382,12 +450,13 @@ class G305RawLeftCamera:
         devices = self.context.query_devices()
         if devices.get_count() <= 0:
             raise RuntimeError("No Orbbec device found")
-        self.device = devices.get_device_by_serial_number(self.serial)
+        self.device, selected_serial = self._select_connected_device(devices)
         info = self.device.get_device_info()
         actual_serial = str(info.get_serial_number())
-        if actual_serial != self.serial:
+        if actual_serial != selected_serial:
             raise RuntimeError(
-                f"Requested G305 serial={self.serial}, got {actual_serial}"
+                f"Fresh G305 enumeration selected serial={selected_serial}, "
+                f"but opened device reports serial={actual_serial}"
             )
 
         self.previous_mode = str(self.device.get_depth_work_mode().name)
@@ -1063,7 +1132,7 @@ def load_samples_from_manifest(path: Path) -> list[CalibrationSample]:
 
 def captured_g305_profile_snapshot() -> G305ProfileInfo:
     return G305ProfileInfo(
-        serial=G305_SERIAL,
+        serial=CAPTURED_G305_SERIAL_20260730,
         device_name="Orbbec Gemini 305",
         firmware="queried_during_capture_not_persisted",
         connection_type="USB3.2",
@@ -2647,7 +2716,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
         type=Path,
         default=SAMPLE_IMAGE_ROOT,
     )
-    parser.add_argument("--g305-serial", default=G305_SERIAL)
+    parser.add_argument(
+        "--g305-serial",
+        default=G305_AUTO_SERIAL,
+        help=(
+            "G305 serial override; default 'auto' freshly enumerates hardware "
+            "and requires exactly one connected Orbbec Gemini 305"
+        ),
+    )
     parser.add_argument(
         "--max-samples",
         type=int,

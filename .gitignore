@@ -133,4 +133,9 @@ Log/
 
 outputs/
 V3_calib/
+
+# Generated printable target copies. Canonical print assets are versioned in
+# their dedicated asset directories; task-local renderings are reproducible.
+assets/targets/charuco/*_A4_landscape_600dpi.pdf
+
 .vscode/browse.vc.db*

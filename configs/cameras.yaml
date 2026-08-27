@@ -50,7 +50,9 @@ cameras:
   g305_raw_left_rgb:
     backend: orbbec
     description: Wuji-mounted G305 original unrectified left optical RGB stream.
-    serial: CV2T661000NC
+    # Resolve the only connected Gemini 305 on every task startup. The runtime
+    # then reads raw-left intrinsics from that selected device's stream profile.
+    serial: auto
     work_mode: Dual Color Streams
     connections:
       sdk: runtime_sdk

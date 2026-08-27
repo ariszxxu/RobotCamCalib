@@ -30,6 +30,7 @@ VALID_TASK_KINDS = {
     "paired_target_extrinsics",
     "mutual_grid_extrinsics",
     "robot_hand_eye",
+    "robot_kinematic_extrinsics",
 }
 _PLACEHOLDER = re.compile(r"\$\{([^{}]+)\}")
 
