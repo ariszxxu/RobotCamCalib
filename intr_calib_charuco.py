@@ -389,6 +389,144 @@ def start_capture(
     )
 
 
+class G305RawLeftCaptureAdapter:
+    """Expose the Orbbec G305 raw-left SDK stream like ``VideoCapture``."""
+
+    def __init__(
+        self,
+        serial: str,
+        width: int,
+        height: int,
+        fps: int,
+        format_name: str,
+        work_mode: str,
+        timeout_ms: int,
+    ) -> None:
+        # Imported lazily so ordinary V4L2 calibrations do not require the
+        # Orbbec SDK. This is the established raw-left implementation used by
+        # the G305 extrinsics workflows in this repository.
+        from calibrate_g305_left_hand_back_palm import G305RawLeftCamera
+
+        self.camera = G305RawLeftCamera(
+            serial=serial,
+            width=width,
+            height=height,
+            fps=fps,
+            format_name=format_name,
+            work_mode=work_mode,
+            timeout_ms=timeout_ms,
+        )
+        try:
+            self.profile = self.camera.open()
+        except Exception:
+            self.camera.close()
+            raise
+
+    def read(self) -> tuple[bool, Optional[np.ndarray]]:
+        # A G305 frameset can initially be incomplete while both color
+        # streams start. Skip those transient frames.
+        for _attempt in range(20):
+            try:
+                frame, _device_timestamp, _system_timestamp = (
+                    self.camera.read_bgr()
+                )
+                return True, frame
+            except RuntimeError as exc:
+                if "no raw left color frame" not in str(exc):
+                    raise
+        return False, None
+
+    def release(self) -> None:
+        self.camera.close()
+
+
+def start_g305_raw_left_capture(
+    args: argparse.Namespace,
+) -> tuple[G305RawLeftCaptureAdapter, str]:
+    cap = G305RawLeftCaptureAdapter(
+        serial=args.g305_serial,
+        width=args.width,
+        height=args.height,
+        fps=args.fps,
+        format_name=args.g305_format,
+        work_mode=args.g305_work_mode,
+        timeout_ms=args.frame_timeout_ms,
+    )
+    profile = cap.profile
+    if (
+        profile.width != args.width
+        or profile.height != args.height
+        or profile.fps != args.fps
+        or profile.format_name.upper() != args.g305_format.upper()
+    ):
+        cap.release()
+        raise RuntimeError(
+            "G305 active raw-left profile does not match the request: "
+            f"active={profile.width}x{profile.height}@{profile.fps} "
+            f"{profile.format_name}, requested={args.width}x{args.height}"
+            f"@{args.fps} {args.g305_format}"
+        )
+    args.capture_metadata = {
+        "backend": "orbbec",
+        "stream": "raw_left_color",
+        "serial": profile.serial,
+        "device_name": profile.device_name,
+        "firmware": profile.firmware,
+        "connection_type": profile.connection_type,
+        "work_mode": profile.active_work_mode,
+        "format": profile.format_name,
+        "requested_profile": [args.width, args.height, args.fps],
+        "factory_K": profile.K.tolist(),
+        "factory_dist": profile.dist.reshape(-1).tolist(),
+        "factory_intrinsics_source": profile.intrinsics_source,
+    }
+    resolved = (
+        f"orbbec://{profile.serial}/raw_left_color/"
+        f"{profile.width}x{profile.height}@{profile.fps}/{profile.format_name}"
+    )
+    print(f"[INFO] Opened G305 raw-left stream: {resolved}")
+    return cap, resolved
+
+
+def apply_target_yaml(args: argparse.Namespace) -> None:
+    """Apply one target YAML to the selected calibration target."""
+    if args.target_yaml is None:
+        return
+    resolved = Path(args.target_yaml).expanduser().resolve()
+    with resolved.open("r", encoding="utf-8") as stream:
+        data = yaml.safe_load(stream)
+    if not isinstance(data, dict):
+        raise ValueError(f"Target YAML must contain a mapping: {resolved}")
+
+    if is_charuco_target(args.target):
+        if data.get("target_type") != "charuco":
+            raise ValueError(f"Expected target_type=charuco in {resolved}")
+        config = data.get("charuco")
+        if not isinstance(config, dict):
+            raise ValueError(f"Missing charuco mapping in {resolved}")
+        required = (
+            "squares_x",
+            "squares_y",
+            "square_length",
+            "marker_length",
+            "dictionary",
+        )
+        missing = [key for key in required if key not in config]
+        if missing:
+            raise ValueError(f"Missing ChArUco keys in {resolved}: {missing}")
+        args.squares_x = int(config["squares_x"])
+        args.squares_y = int(config["squares_y"])
+        args.square_length = float(config["square_length"])
+        args.marker_length = float(config["marker_length"])
+        args.dictionary = str(config["dictionary"])
+        args.legacy_pattern = bool(config.get("legacy_pattern", False))
+        print(f"[INFO] Loaded ChArUco target YAML: {resolved}")
+        return
+
+    if data.get("target_type") != "apriltag_grid":
+        raise ValueError(f"Expected target_type=apriltag_grid in {resolved}")
+
+
 def get_cv2_config(camera_name: Optional[str]) -> dict:
     if camera_name is None:
         return {}
@@ -2244,6 +2382,7 @@ def save_yaml(
         "camera_model": str(results["camera_model"]),
         "calibration_target": str(CALIBRATION_TARGET),
         "capture": {
+            "backend": str(getattr(args, "backend", "opencv")),
             "auto_save_valid_images": bool(AUTO_SAVE_VALID_IMAGES),
             "auto_save_cooldown_s": float(AUTO_SAVE_COOLDOWN_S),
             "min_corners_per_sample": int(args.min_corners),
@@ -2266,6 +2405,9 @@ def save_yaml(
         "rejected_indices": [int(v) for v in results.get("rejected_indices", [])],
         "samples": results.get("sample_metadata", []),
     }
+    capture_metadata = getattr(args, "capture_metadata", None)
+    if isinstance(capture_metadata, dict):
+        data["capture"].update(capture_metadata)
     if is_charuco_target():
         data["charuco"] = {
             "squares_x": int(args.squares_x),
@@ -2320,7 +2462,8 @@ def run_interactive_calibration(args: argparse.Namespace) -> str:
         getattr(args, "camera_model", CAMERA_MODEL)
     ).lower()
     target_yaml = getattr(args, "target_yaml", None)
-    if target_yaml is not None:
+    apply_target_yaml(args)
+    if target_yaml is not None and CALIBRATION_TARGET == "apriltag_grid":
         APRILTAG_GRID_YAML = Path(target_yaml)
     sample_root = getattr(args, "sample_root", None)
     if sample_root is not None:
@@ -2335,18 +2478,27 @@ def run_interactive_calibration(args: argparse.Namespace) -> str:
     if CAMERA_MODEL not in {"pinhole", "fisheye"}:
         raise ValueError(f"Unsupported CAMERA_MODEL={CAMERA_MODEL}; use 'pinhole' or 'fisheye'.")
 
-    config = get_cv2_config(args.camera_name)
-    src = parse_camera_source(args.src)
-    if config:
-        src = str(config["port"])
-        args.width = args.width if args.width is not None else int(config["resolution"][0])
-        args.height = args.height if args.height is not None else int(config["resolution"][1])
-        args.fps = args.fps if args.fps is not None else int(config["fps"])
-        args.fourcc = args.fourcc if args.fourcc is not None else config.get("fourcc")
-    if args.port is not None:
-        src = str(args.port)
-    elif not config and DEFAULT_CV2_PORT is not None:
-        src = str(DEFAULT_CV2_PORT)
+    src: int | str
+    if args.backend == "opencv":
+        config = get_cv2_config(args.camera_name)
+        src = parse_camera_source(args.src)
+        if config:
+            src = str(config["port"])
+            args.width = args.width if args.width is not None else int(config["resolution"][0])
+            args.height = args.height if args.height is not None else int(config["resolution"][1])
+            args.fps = args.fps if args.fps is not None else int(config["fps"])
+            args.fourcc = args.fourcc if args.fourcc is not None else config.get("fourcc")
+        if args.port is not None:
+            src = str(args.port)
+        elif not config and DEFAULT_CV2_PORT is not None:
+            src = str(DEFAULT_CV2_PORT)
+    else:
+        if args.camera_name is not None or args.port is not None:
+            raise ValueError(
+                "--camera-name and --port are OpenCV-only; use "
+                "--g305-serial for the Orbbec backend"
+            )
+        src = "orbbec-g305-raw-left"
 
     if is_charuco_target():
         board, dictionary = create_charuco_board(
@@ -2367,7 +2519,12 @@ def run_interactive_calibration(args: argparse.Namespace) -> str:
         raise ValueError(f"Unsupported CALIBRATION_TARGET={CALIBRATION_TARGET}")
     if args.min_corners is None:
         args.min_corners = MIN_CORNERS_PER_SAMPLE
-    cap, resolved_src = start_capture(src, args.width, args.height, args.fps, args.fourcc)
+    if args.backend == "orbbec":
+        cap, resolved_src = start_g305_raw_left_capture(args)
+    else:
+        cap, resolved_src = start_capture(
+            src, args.width, args.height, args.fps, args.fourcc
+        )
 
     samples: list[dict] = []
     sample_image_dir = create_sample_image_dir()
@@ -2393,7 +2550,14 @@ def run_interactive_calibration(args: argparse.Namespace) -> str:
         )
     print(f"[INFO] Min corners per sample: {args.min_corners}")
     print(f"[INFO] Camera model: {CAMERA_MODEL}")
-    print(f"[INFO] CV2 source: requested={src}, resolved={resolved_src}, width={args.width}, height={args.height}, fps={args.fps}, fourcc={args.fourcc}")
+    capture_format = (
+        args.g305_format if args.backend == "orbbec" else args.fourcc
+    )
+    print(
+        f"[INFO] Capture source: backend={args.backend}, requested={src}, "
+        f"resolved={resolved_src}, width={args.width}, height={args.height}, "
+        f"fps={args.fps}, format={capture_format}"
+    )
     print(f"[INFO] Sample images will be cached under {sample_image_dir}")
     print(f"[INFO] Auto-save valid images: {AUTO_SAVE_VALID_IMAGES}, cooldown={AUTO_SAVE_COOLDOWN_S}s")
     print("[INFO] Store samples manually with 's'. Press 'q' to calibrate and save.")
@@ -2684,6 +2848,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Interactive CV2 ChArUco intrinsics calibration."
     )
+    parser.add_argument(
+        "--backend",
+        choices=("opencv", "orbbec"),
+        default="opencv",
+        help="Capture backend; use orbbec for the G305 raw-left SDK stream.",
+    )
     parser.add_argument("--src", default=DEFAULT_CV2_SOURCE, help="CV2 source index, /dev/videoX, or USB port id.")
     parser.add_argument("--port", default=None, help="USB port id such as 3-10.1:1.0; overrides --src and the port in --camera-name.")
     parser.add_argument("--camera-name", default=DEFAULT_CV2_CAMERA_NAME, help="Use an OpenCV camera entry from configs/cameras.yaml.")
@@ -2707,8 +2877,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--target-yaml",
         type=Path,
         default=None,
-        help="AprilTag-grid YAML; used when --target=apriltag_grid.",
+        help="ChArUco or AprilTag-grid target YAML matching --target.",
     )
+    parser.add_argument(
+        "--g305-serial",
+        default="auto",
+        help="G305 serial, or auto when exactly one Gemini 305 is connected.",
+    )
+    parser.add_argument("--g305-work-mode", default="Dual Color Streams")
+    parser.add_argument("--g305-format", default="RGB")
+    parser.add_argument("--frame-timeout-ms", type=int, default=1500)
     parser.add_argument(
         "--sample-root",
         type=Path,

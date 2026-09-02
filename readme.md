@@ -42,12 +42,30 @@ python calibctl.py run dual_grid_mount_offsets -- --max-samples 60
 | `third_view_intrinsics_charuco` | 第三视角针孔相机的 ChArUco 内参标定 |
 | `thumb_web_intrinsics_charuco` | 虎口鱼眼相机的 ChArUco 内参标定 |
 | `middle_finger_intrinsics_charuco` | 中指针孔相机的 ChArUco 内参标定 |
+| `g305_intrinsics_charuco` | G305 原始左目 1280×800@20 RGB 的 ChArUco 内参标定 |
 | `thumb_web_cube_charuco_extrinsics` | 用第三视角 AprilCube 与虎口 ChArUco 成对观测求外参 |
 | `dual_grid_mount_offsets` | 两台相机各带一块 AprilTag Grid，利用相互观测求两个安装偏移 |
 | `g305_hand_back_extrinsics` | 求手背 AprilCube 坐标系到 G305 原始左 RGB 光学坐标系的外参 |
 | `middle_finger_hand_back_extrinsics` | 求手背 AprilCube 坐标系到中指相机光学坐标系的外参 |
 | `xarm7_g305_eye_in_hand` | 只读 xArm7 qpos，求 `link7_T_wuji_g305_raw_left_optical` |
 | `wuji_g305_fingertip_extrinsics` | 用 WujiHand URDF、G305 与指尖 AprilCube 联合求掌部相机和指尖标靶两个安装外参 |
+
+## G305 原始左目内参标定
+
+该任务通过 Orbbec SDK 选择 G305 的 `LEFT_COLOR_SENSOR`，临时切换到
+`Dual Color Streams`，采集未经矫正的 `1280x800@20 RGB` 左目图像。退出时恢复
+相机原工作模式。默认要求只连接一台 Gemini 305；多台设备同时连接时使用
+`--g305-serial` 指定序列号。
+
+```bash
+/home/CNS2025915223/miniconda3/envs/pyroki/bin/python \
+  calibctl.py run g305_intrinsics_charuco
+```
+
+程序从任务指定的 ChArUco YAML 读取方格数量、尺寸、Marker 尺寸和字典。有效图像
+自动保存，`s` 可手动补采，`q` 或 `Esc` 结束采集并执行模糊过滤、姿态去重、重投影
+离群剔除和交叉验证。结果和诊断文件保存在
+`outputs/intrinsics/g305_raw_left_rgb/raw_left_20fps/`。
 
 ## xArm7 + G305 眼在手上标定
 

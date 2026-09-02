@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 from scipy.spatial.transform import Rotation
 
+from intr_calib_charuco import apply_target_yaml, build_arg_parser
 from robot_cam_calib.capture import TimedFrame, select_synchronized_pair
 from robot_cam_calib.config import CalibrationCatalog
 from robot_cam_calib.geometry import (
@@ -104,6 +105,33 @@ class CatalogTests(unittest.TestCase):
             command = catalog.build_command(task_name)
             self.assertTrue(Path(command[1]).is_file())
             self.assertNotIn("${", " ".join(command))
+
+    def test_g305_raw_left_intrinsics_task_is_fully_named(self) -> None:
+        catalog = CalibrationCatalog.load(REPO_ROOT / "configs")
+        command = catalog.build_command("g305_intrinsics_charuco")
+        joined = " ".join(command)
+        self.assertIn("--backend orbbec", joined)
+        self.assertIn("--width 1280 --height 800 --fps 20", joined)
+        self.assertIn("--g305-format RGB", joined)
+        self.assertIn("--target-yaml", joined)
+
+
+class IntrinsicsCalibrationTests(unittest.TestCase):
+    def test_charuco_yaml_populates_board_geometry(self) -> None:
+        board_yaml = REPO_ROOT / (
+            "assets/charuco_a4_0712_223646/"
+            "charuco_7x5_40mm_marker30mm_DICT_5X5_50_"
+            "A4_landscape_600dpi.yaml"
+        )
+        args = build_arg_parser().parse_args(
+            ["--target", "charuco", "--target-yaml", str(board_yaml)]
+        )
+        apply_target_yaml(args)
+        self.assertEqual((args.squares_x, args.squares_y), (7, 5))
+        self.assertEqual(args.square_length, 0.04)
+        self.assertEqual(args.marker_length, 0.03)
+        self.assertEqual(args.dictionary, "DICT_5X5_50")
+        self.assertFalse(args.legacy_pattern)
 
 
 class TargetPoseTests(unittest.TestCase):

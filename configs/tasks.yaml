@@ -114,6 +114,40 @@ tasks:
       - --sample-root
       - outputs/intrinsics/middle_finger_cam/full_50fps/samples
 
+  g305_intrinsics_charuco:
+    kind: intrinsics
+    description: Calibrate the G305 original raw-left pinhole stream with the A4 ChArUco board.
+    runner: intr_calib_charuco.py
+    cameras: [g305_raw_left_rgb]
+    targets: [charuco_a4_40mm]
+    arguments:
+      - --backend
+      - orbbec
+      - --g305-serial
+      - ${cameras.g305_raw_left_rgb.serial}
+      - --g305-work-mode
+      - ${cameras.g305_raw_left_rgb.work_mode}
+      - --width
+      - ${cameras.g305_raw_left_rgb.profiles.raw_left_20fps.resolution.0}
+      - --height
+      - ${cameras.g305_raw_left_rgb.profiles.raw_left_20fps.resolution.1}
+      - --fps
+      - ${cameras.g305_raw_left_rgb.profiles.raw_left_20fps.fps}
+      - --g305-format
+      - ${cameras.g305_raw_left_rgb.profiles.raw_left_20fps.format}
+      - --camera-model
+      - ${cameras.g305_raw_left_rgb.profiles.raw_left_20fps.camera_model}
+      - --target
+      - charuco
+      - --target-yaml
+      - assets/charuco_a4_0712_223646/charuco_7x5_40mm_marker30mm_DICT_5X5_50_A4_landscape_600dpi.yaml
+      - --output-name
+      - g305_raw_left_rgb
+      - --output
+      - outputs/intrinsics/g305_raw_left_rgb/raw_left_20fps/intrinsics.yaml
+      - --sample-root
+      - outputs/intrinsics/g305_raw_left_rgb/raw_left_20fps/samples
+
   thumb_web_cube_charuco_extrinsics:
     kind: paired_target_extrinsics
     description: Estimate the thumb-web camera pose in the AprilCube frame.
