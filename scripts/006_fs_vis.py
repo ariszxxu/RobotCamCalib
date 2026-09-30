@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+import sys 
+sys.path.append("/home/ps/FoundationSteroMain")
+
 import os
 import json
 import cv2
@@ -11,10 +14,10 @@ from contaccams.stereo_rectify import StereoRectifier  # must expose .load_or_bu
 
 # ------------------- Defaults (edit if needed) ------------------- #
 camera_to_port = {
-    "tip_cam":  "3-10:1.0",   # LEFT
-    "root_cam": "3-9:1.0",    # RIGHT
+    "root_cam": "3-9:1.0",
+    "tip_cam": "3-10:1.0",
 }
-left_name, right_name = "tip_cam", "root_cam"
+left_name, right_name = "root_cam", "tip_cam"  # choose your pair
 
 out_dir = "outputs"
 intr_left_yaml  = f"{out_dir}/{left_name}_intrinsics.yaml"
@@ -23,7 +26,7 @@ stereo_yaml     = f"{out_dir}/{left_name}_{right_name}_stereo.yaml"
 maps_npz        = f"{out_dir}/{left_name}_{right_name}_rectify_maps.npz"  # or None to force rebuild
 
 # FoundationStereo checkpoint (edit to your actual ckpt)
-ckpt_path = "/home/ps/projects/FoundationStereo/pretrained_models/23-51-11/model_best_bp2.pth"
+ckpt_path = "/home/ps/FoundationStereo-master/pretrained_models/23-51-11/model_best_bp2.pth"
 
 # Choose rectification alpha (MUST match what you want to use at runtime)
 rectify_alpha = -1.0   # try 0.0, 0.5, 1.0, or -1 (OpenCV chooses)

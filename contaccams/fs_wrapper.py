@@ -270,6 +270,27 @@ def maybe_save_pointcloud(out_dir: str, xyz: np.ndarray, rgb: np.ndarray, mask: 
     vis.run()
     vis.destroy_window()
     
+def return_denoised_pointcloud( xyz: np.ndarray, rgb: np.ndarray, mask: np.ndarray,  nb_points: int, radius: float):
+    try:
+        import open3d as o3d
+    except Exception:
+        logging.warning("Open3D not available; skipping PLY export.")
+        return
+    pts = xyz[mask].reshape(-1, 3)
+    cols = (rgb[mask].reshape(-1, 3).astype(np.float32) / 255.0)
+    if pts.size == 0:
+        logging.warning("No valid 3D points to save.")
+        return
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(pts)
+    pcd.colors = o3d.utility.Vector3dVector(cols)
+    cl, ind = pcd.remove_radius_outlier(nb_points=nb_points, radius=radius)
+    inlier = pcd.select_by_index(ind)
+    pcd = inlier
+    return pcd 
+
+
+
 def main():
     set_logging()
     code_dir = os.path.dirname(os.path.realpath(__file__))

@@ -289,10 +289,10 @@ class AutoCameraManagerForCalibration(InteractiveCameraManagerForCalibration):
 
 if __name__ == "__main__":
     camera_to_port = {
-        "tip_cam": "3-10:1.0",
         "root_cam": "3-9:1.0",
+        "tip_cam": "3-10:1.0",
     }
-    left_name, right_name = "tip_cam", "root_cam"  # choose your pair
+    left_name, right_name = "root_cam", "tip_cam"  # choose your pair
 
     out_dir = "outputs"
     os.makedirs(out_dir, exist_ok=True)
